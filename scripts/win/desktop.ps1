@@ -30,6 +30,7 @@ function Get-DesktopItems {
 
 # Find one desktop item by display name or path (exact, then unique partial match).
 function Find-DesktopItem([string]$key, $items) {
+  if ($key -match '^[A-Za-z]:/') { $key = $key.Replace('/', '\') }
   $m = @($items | Where-Object { $_.name -eq $key -or $_.path -eq $key })
   if (-not $m.Count) { $m = @($items | Where-Object { $_.name -like "*$key*" }) }
   if ($m.Count -eq 1) { return $m[0] }

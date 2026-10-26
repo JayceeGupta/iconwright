@@ -2,6 +2,7 @@
 import { register } from './cli.mjs';
 import { applyIcon, applyDesktopIcon } from './apply.mjs';
 import { win } from './win.mjs';
+import { toJson } from './output.mjs';
 
 const BOOL = new Set(['pin', 'refresh', 'no-restart', 'help', 'show', 'hide', 'all']);
 function parse(args) {
@@ -16,7 +17,7 @@ function parse(args) {
   }
   return { v, pos };
 }
-const out = (x) => JSON.stringify(x);
+const out = toJson;
 const apps = (v, pos) => [].concat(v.app ?? [], pos).filter(Boolean);
 const restartOpts = (v) => ({ noRestart: v['no-restart'], restartCooldown: v.cooldown });
 
@@ -74,6 +75,13 @@ register('restore-pins', async (args) => {
   if (!['last', 'original'].includes(from)) throw new Error('restore-pins [--from last|original]');
   return out(await win('restore-pins', { value: from }));
 }, 'restore-pins [--from last|original]   undo pin-list changes from a backup (restarts explorer)');
+
+register('capture', async (args) => {
+  const { v, pos } = parse(args);
+  const what = pos[0] ?? 'taskbar';
+  if (!['taskbar', 'desktop', 'screen'].includes(what)) throw new Error('capture [taskbar|desktop|screen] [--out file.png] [--max-width px]');
+  return out(await win('capture', { value: what, file: v.out, maxWidth: v['max-width'] }));
+}, 'capture [taskbar|desktop|screen] [--out f.png]  screenshot to check a change');
 
 register('doctor', async () => out(await win('doctor')), 'doctor                                check this PC can run the Windows commands');
 

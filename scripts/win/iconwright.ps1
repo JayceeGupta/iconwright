@@ -25,7 +25,8 @@ param(
   # desktop-* commands
   [string[]]$Item, [int]$X, [int]$Y, [string]$Value, [string]$File,
   [string]$By, [string]$Corner, [string]$Flow,
-  [string]$AutoArrange, [string]$SnapToGrid, [string]$ShowIcons
+  [string]$AutoArrange, [string]$SnapToGrid, [string]$ShowIcons,
+  [int]$MaxWidth = 1600          # capture: downscale wider images to this width (0 = full size)
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
@@ -51,7 +52,7 @@ function Import-Interop {
   $dll = Join-Path $Home_ "bin\Iconwright.Win.$hash.dll"
   if (-not (Test-Path -LiteralPath $dll)) {
     New-Item -ItemType Directory -Force (Split-Path $dll) | Out-Null
-    Add-Type -Path $src -OutputAssembly $dll -OutputType Library
+    Add-Type -Path $src -OutputAssembly $dll -OutputType Library -ReferencedAssemblies System.Drawing
   }
   Add-Type -Path $dll
 }
@@ -92,6 +93,7 @@ function Get-StartShortcuts {
 function Find-Apps([string]$q) {
   $apps = Get-StartApps
   if ($q) {
+    if ($q -match '^[A-Za-z]:/') { $q = $q.Replace('/', '\') }   # paths may come back with forward slashes
     $exact = @($apps | Where-Object { $_.Name -eq $q -or $_.AppID -eq $q })
     if ($exact.Count) { return $exact }
     $apps = $apps | Where-Object { $_.Name -like "*$q*" -or $_.AppID -like "*$q*" }
@@ -483,7 +485,7 @@ function Cmd-Doctor {
 }
 
 # Changes run one at a time: two explorer restarts or pin-list writes must never overlap.
-$ReadOnly = @('apps', 'info', 'status', 'doctor', 'desktop-list', 'help')
+$ReadOnly = @('apps', 'info', 'status', 'doctor', 'capture', 'desktop-list', 'help')
 $script:Lock = $null
 if ($ReadOnly -notcontains $Command.ToLower()) {
   $script:Lock = New-Object Threading.Mutex($false, 'Local\iconwright-change')
@@ -496,6 +498,14 @@ Import-Interop
 . (Join-Path $PSScriptRoot 'desktop.ps1')
 switch -Wildcard ($Command.ToLower()) {
   'doctor' { Out-Json (Cmd-Doctor) }
+  'capture' {
+    $what = if ($Value) { $Value.ToLower() } else { 'taskbar' }
+    if ($what -notin 'taskbar', 'desktop', 'screen') { Fail "capture: -Value must be taskbar, desktop or screen" }
+    $out = if ($File) { $File } else { Join-Path (Join-Path $Home_ 'captures') "$what.png" }
+    New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
+    $size = switch ($what) { 'taskbar' { [Iconwright.Capture]::Taskbar($out, $MaxWidth) } 'desktop' { [Iconwright.Capture]::Desktop($out, $MaxWidth) } default { [Iconwright.Capture]::Screen($out, $MaxWidth) } }
+    Out-Json ([pscustomobject]@{ path = $out; size = $size })
+  }
   'restore-pins' { Out-Json (Cmd-RestorePins $Value) }
   'restore-all' { Out-Json (Cmd-RestoreAll) }
   'desktop-*' { Invoke-DesktopCommand $Command.Substring(8).ToLower() }
@@ -529,10 +539,15 @@ switch -Wildcard ($Command.ToLower()) {
     Out-Json ([pscustomobject]@{ ok = $true; explorer = $script:RestartReport })
   }
   'status' {
-    Out-Json @([Iconwright.Taskband]::List() | ForEach-Object {
+    # Pins usually live in the pinned folder; only paths elsewhere are spelled out.
+    Out-Json ([pscustomobject]@{ folder = $PinnedDir; pins = @([Iconwright.Taskband]::List() | ForEach-Object {
       $ok = $_ -and (Test-Path -LiteralPath $_)
-      [pscustomobject]@{ path = $_; icon = $(if ($ok) { [Iconwright.Lnk]::GetIcon($_) } else { $null }) }
-    })
+      $o = [ordered]@{ name = $(if ($_) { [IO.Path]::GetFileNameWithoutExtension($_) } else { '(unknown)' }) }
+      if ($_ -and (Split-Path $_) -ne $PinnedDir) { $o.path = $_ }
+      $ic = if ($ok) { [Iconwright.Lnk]::GetIcon($_) } else { $null }
+      if ($ic -and $ic -ne ',0') { $o.icon = $ic }
+      [pscustomobject]$o
+    }) })
   }
   default {
     'Commands: apps | info | set-icon | pin | unpin | reorder | restore | restore-all | restore-pins | refresh | status | doctor | desktop-<list|move|arrange|size|options|system|set-icon|restore|save|load>. Use the Node CLI (iconwright help) for documented usage.'

@@ -8,11 +8,12 @@ import { makeIcon } from './render.mjs';
 import { makeSheet } from './sheet.mjs';
 import { win } from './win.mjs';
 import { applyIcon, applyDesktopIcon } from './apply.mjs';
+import { toJson } from './output.mjs';
 
 const { version } = createRequire(import.meta.url)('../package.json');
 const server = new McpServer({ name: 'iconwright', version });
 const imageContent = async (file) => ({ type: 'image', data: (await readFile(file)).toString('base64'), mimeType: 'image/png' });
-const jsonContent = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
+const jsonContent = (value) => ({ content: [{ type: 'text', text: toJson(value) }] });
 function tool(name, description, schema, handler) {
   server.tool(name, description, schema, async (args) => {
     try { return await handler(args); }
@@ -30,11 +31,11 @@ tool('make_icon', 'Create an ICO, preview PNG, and 256px PNG from an icon source
   shape: z.enum(['none', 'square', 'rounded', 'circle']).optional(), radius: z.number().optional(), padding: z.number().optional(), outDir: z.string().optional(), pngSize: z.number().int().min(16).max(1024).optional(),
 }, async (args) => {
   const made = await makeIcon(args);
-  return { content: [{ type: 'text', text: JSON.stringify({ ico: made.ico, preview: made.preview, png: made.pngs[0] }) }, await imageContent(made.preview)] };
+  return { content: [{ type: 'text', text: toJson({ ico: made.ico, preview: made.preview, png: made.pngs[0] }) }, await imageContent(made.preview)] };
 });
 tool('make_sheet', 'Create a labeled PNG contact sheet from image files.', { files: z.array(z.string()).min(1), out: z.string() }, async ({ files, out }) => {
   const file = await makeSheet(files, out);
-  return { content: [{ type: 'text', text: JSON.stringify({ path: file }) }, await imageContent(file)] };
+  return { content: [{ type: 'text', text: toJson({ path: file }) }, await imageContent(file)] };
 });
 winTool('list_apps', 'List matching Start menu apps and AppUserModelIDs.', { query: z.string().optional() }, async ({ query }) => jsonContent(await win('apps', { query })));
 winTool('app_info', 'Get shortcut and pin details for the named apps.', { apps: z.array(z.string()).min(1) }, async ({ apps }) => jsonContent(await win('info', { app: apps })));
@@ -53,6 +54,12 @@ winTool('restore_all_icons', 'Put back every icon iconwright changed (apps and d
 winTool('restore_taskbar_backup', 'Undo pin/unpin/reorder changes from a backup: last = before the most recent change, original = before iconwright first changed the pin list. Restarts Explorer.', {
   from: z.enum(['last', 'original']).optional(),
 }, async ({ from }) => jsonContent(await win('restore-pins', { value: from ?? 'last' })));
+winTool('capture', 'Screenshot the taskbar, the desktop icons (drawn even when windows cover them; no wallpaper) or the whole screen, to check a change. Returns the image.', {
+  what: z.enum(['taskbar', 'desktop', 'screen']).optional(), maxWidth: z.number().int().min(0).optional(),
+}, async ({ what, maxWidth }) => {
+  const shot = await win('capture', { value: what ?? 'taskbar', maxWidth: maxWidth ?? 1600 });
+  return { content: [{ type: 'text', text: toJson(shot) }, await imageContent(shot.path)] };
+});
 winTool('doctor', 'Read-only check that this PC can run the taskbar and desktop tools; reports Windows/PowerShell versions, pin-list format, backups and taskbar mods.', {}, async () => jsonContent(await win('doctor')));
 
 winTool('reorder_taskbar', 'Move pinned apps in order to an index; restarts Explorer once.', {
@@ -81,7 +88,7 @@ winTool('desktop_apply_icon', 'Create or apply an ICO to a desktop item; source 
   shape: z.enum(['none', 'square', 'rounded', 'circle']).optional(), radius: z.number().optional(), padding: z.number().optional(), outDir: z.string().optional(), iconIndex: z.number().int().optional(),
 }, async (args) => {
   const result = await applyDesktopIcon(args);
-  const content = [{ type: 'text', text: JSON.stringify(result) }];
+  const content = [{ type: 'text', text: toJson(result) }];
   if (result.preview) content.push(await imageContent(result.preview));
   return { content };
 });

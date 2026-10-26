@@ -20,7 +20,7 @@ test('stdio MCP server exposes tools and returns generated icon preview', async 
   const { tools } = await client.listTools();
   const core = ['search_icons', 'make_icon', 'make_sheet'];
   const windows = ['list_apps', 'app_info', 'taskbar_status', 'apply_icon', 'set_icon', 'pin_apps', 'unpin_apps', 'refresh',
-    'restore_icons', 'restore_all_icons', 'restore_taskbar_backup', 'doctor', 'reorder_taskbar', 'desktop_info', 'desktop_move',
+    'restore_icons', 'restore_all_icons', 'restore_taskbar_backup', 'doctor', 'capture', 'reorder_taskbar', 'desktop_info', 'desktop_move',
     'desktop_arrange', 'desktop_icon_size', 'desktop_options', 'desktop_system_icons', 'desktop_apply_icon', 'desktop_restore_icons',
     'desktop_layout_save', 'desktop_layout_load'];
   const expected = process.platform === 'win32' ? [...core, ...windows] : core;

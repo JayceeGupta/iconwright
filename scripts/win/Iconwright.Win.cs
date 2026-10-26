@@ -551,4 +551,65 @@ namespace Iconwright {
       SHChangeNotify(0x08000000 /*SHCNE_ASSOCCHANGED*/, 0x1000, IntPtr.Zero, IntPtr.Zero);
     }
   }
+
+  // ---------- Screenshots (so agents can check their changes) ----------
+  public static class Capture {
+    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+    [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowW(string cls, string name);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowExW(IntPtr parent, IntPtr after, string cls, string name);
+    [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
+    [DllImport("user32.dll")] static extern int GetSystemMetrics(int i);
+
+    // Returns "width x height" of the saved PNG.
+    public static string Screen(string path, int maxWidth) {
+      SetProcessDPIAware();
+      return Region(GetSystemMetrics(76), GetSystemMetrics(77), GetSystemMetrics(78), GetSystemMetrics(79), path, maxWidth);
+    }
+    public static string Taskbar(string path, int maxWidth) {
+      SetProcessDPIAware();
+      IntPtr tray = FindWindowW("Shell_TrayWnd", null); RECT r;
+      if (tray == IntPtr.Zero || !GetWindowRect(tray, out r)) throw new InvalidOperationException("Taskbar window not found");
+      return Region(r.L, r.T, r.R - r.L, r.B - r.T, path, maxWidth);
+    }
+    // The desktop icon layer, drawn even when windows cover it (the wallpaper is not included).
+    public static string Desktop(string path, int maxWidth) {
+      SetProcessDPIAware();
+      IntPtr view = FindWindowExW(FindWindowW("Progman", null), IntPtr.Zero, "SHELLDLL_DefView", null);
+      for (IntPtr w = IntPtr.Zero; view == IntPtr.Zero; ) {
+        w = FindWindowExW(IntPtr.Zero, w, "WorkerW", null); if (w == IntPtr.Zero) break;
+        view = FindWindowExW(w, IntPtr.Zero, "SHELLDLL_DefView", null);
+      }
+      IntPtr lv = view == IntPtr.Zero ? IntPtr.Zero : FindWindowExW(view, IntPtr.Zero, "SysListView32", null);
+      RECT r; if (lv == IntPtr.Zero || !GetWindowRect(lv, out r)) throw new InvalidOperationException("Desktop icon view not found");
+      using (var bmp = new System.Drawing.Bitmap(r.R - r.L, r.B - r.T)) {
+        using (var g = System.Drawing.Graphics.FromImage(bmp)) {
+          g.Clear(System.Drawing.Color.Black);
+          IntPtr dc = g.GetHdc(); try { PrintWindow(lv, dc, 2 /*PW_RENDERFULLCONTENT*/); } finally { g.ReleaseHdc(dc); }
+        }
+        return Save(bmp, path, maxWidth);
+      }
+    }
+    public static string Region(int x, int y, int w, int h, string path, int maxWidth) {
+      SetProcessDPIAware();
+      if (w <= 0 || h <= 0) throw new ArgumentException("empty capture region");
+      using (var bmp = new System.Drawing.Bitmap(w, h)) {
+        using (var g = System.Drawing.Graphics.FromImage(bmp)) g.CopyFromScreen(x, y, 0, 0, bmp.Size);
+        return Save(bmp, path, maxWidth);
+      }
+    }
+    static string Save(System.Drawing.Bitmap bmp, string path, int maxWidth) {
+      int w = bmp.Width, h = bmp.Height;
+      if (maxWidth > 0 && w > maxWidth) { h = Math.Max(1, h * maxWidth / w); w = maxWidth; }
+      using (var o = new System.Drawing.Bitmap(w, h)) {
+        using (var g = System.Drawing.Graphics.FromImage(o)) {
+          g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+          g.DrawImage(bmp, 0, 0, w, h);
+        }
+        o.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+      }
+      return w + "x" + h;
+    }
+  }
 }
