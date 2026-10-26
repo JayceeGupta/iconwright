@@ -6,5 +6,11 @@
   "homepage": "https://github.com/JayceeGupta/iconwright",
   "repository": "https://github.com/JayceeGupta/iconwright",
   "license": "MIT",
-  "keywords": ["icons", "windows", "taskbar", "desktop", "mcp"]
+  "keywords": ["icons", "windows", "taskbar", "desktop", "mcp"],
+  "mcpServers": {
+    "iconwright": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/iconwright-mcp.mjs"]
+    }
+  }
 }
