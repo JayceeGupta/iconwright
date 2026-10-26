@@ -1,6 +1,7 @@
-# How the Windows layer works (verified 2026-10-26, Win11 26200 + StartAllBack 3.9)
+# Windows internals (verified 2026-10-27, Win11 26200 + StartAllBack 3.9)
 
-Hard-won findings behind `scripts/win/`. Read before changing pin/icon logic.
+Hard-won findings behind `scripts/win/`, for contributors. Read this before changing the pin, icon or
+desktop logic. For a plain-language overview, see [How it works](how-it-works.md).
 
 ## Where a taskbar button's icon comes from
 - **Running app with an explicit AppUserModelID** (Electron apps like T3 Code, VS Code): the icon
@@ -28,7 +29,8 @@ Hard-won findings behind `scripts/win/`. Read before changing pin/icon logic.
 ## Side effects
 - Restarting Explorer twice within ~30 s trips TranslucentTB's failsafe (taskbar falls back to the accent
   color, from `Explorer\Accent\AccentPalette`). The script samples the taskbar color before/after and
-  only flags a change from a custom color to a stock one; styling tools that died are relaunched.
+  only flags a change from a custom color to a stock one, and only if a styling tool was running
+  (without one, the accent shade can drift between restarts). Styling tools that died are relaunched.
   `--cooldown <s>` spaces restarts for long batches. Context changes (TranslucentTB going clear on the
   desktop) are normal and not flagged.
 - MCP clients start servers with a trimmed environment (no `ProgramData`/`WINDIR`): resolve folders via
@@ -37,9 +39,22 @@ Hard-won findings behind `scripts/win/`. Read before changing pin/icon logic.
 - Console apps (PowerShell, cmd) run inside Windows Terminal when it's the default terminal, so their
   running button is Terminal's. Use a GUI app to test.
 
-## Backups
-`%LOCALAPPDATA%\iconwright\backups\` holds the Taskband export + pinned folder copy from before the
-first change on this machine. `state.json` holds each shortcut's original icon for `restore`.
+## Safety around pin-list writes
+- Writers parse `Favorites` and `FavoritesResolve` strictly (`Taskband.Strict`): every record must
+  parse, `Favorites` must end in a single `0xFF`, and both lists must have the same length. Anything
+  else throws instead of rewriting a list that was only partly understood.
+- `Invoke-WithExplorerStopped` snapshots both values first. If the action throws, the snapshot is
+  written back before Explorer restarts.
+- Backups in `%LOCALAPPDATA%\iconwright\backups\`: `original\` (once, before the first change) and
+  `last\` (before every change; written to `pending\` and promoted only if the change succeeds).
+  Each holds `taskband.reg` (reg export) and `TaskBar\` (the pinned shortcuts). Older versions wrote
+  `taskband-<stamp>.reg` + `TaskBar-folder-<stamp>`; `restore-pins --from original` still reads those.
+- `reg.exe` prints its status to stderr, which PowerShell 5.1 turns into an error under
+  `$ErrorActionPreference = 'Stop'`; `Invoke-Reg` runs it with `Continue` and checks the exit code.
+- Mutating commands hold the named mutex `Local\iconwright-change`.
+- After the restart, `Wait-Taskbar` polls for `Shell_TrayWnd`. Explorer is started by hand only if
+  Windows didn't restart it within 8 s (a second `explorer.exe` would open a File Explorer window).
+- `state.json` holds each changed item's original icon for `restore` / `restore-all`.
 
 ## Taskbar order
 Pin order = entry order in `Favorites` (with `FavoritesResolve` kept in the same order). `reorder`
