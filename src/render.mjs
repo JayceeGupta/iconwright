@@ -138,17 +138,14 @@ export async function makeIcon(opts) {
   const source = await loadSource(opts.source);
   const base = await sourcePng(source, opts.color);
   const master = await makeMaster(base, opts);
-  const pngs = [];
+  const pngSize = opts.pngSize === undefined ? 256 : Math.trunc(Number(opts.pngSize));
+  if (!(pngSize >= 16 && pngSize <= MASTER)) throw new Error(`pngSize must be 16-${MASTER}`);
+  const resize = (size) => sharp(master).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: KERNEL }).png().toBuffer();
   const icoPngs = [];
-  for (const size of ICO_SIZES) {
-    const png = await sharp(master).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: KERNEL }).png().toBuffer();
-    icoPngs.push(png);
-    if (size === 256) {
-      const pngPath = path.join(outDir, `${name}-256.png`);
-      await writeFile(pngPath, png);
-      pngs.push(pngPath);
-    }
-  }
+  for (const size of ICO_SIZES) icoPngs.push(await resize(size));
+  const pngPath = path.join(outDir, `${name}-${pngSize}.png`);
+  await writeFile(pngPath, pngSize === 256 ? icoPngs[0] : await resize(pngSize));
+  const pngs = [pngPath];
   const ico = path.join(outDir, `${name}.ico`);
   const preview = path.join(outDir, `${name}-preview.png`);
   await writeFile(ico, await pngToIco(icoPngs));

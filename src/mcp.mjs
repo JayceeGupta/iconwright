@@ -27,7 +27,7 @@ const winTool = process.platform === 'win32' ? tool : () => {};
 tool('search_icons', 'Search Iconify and return matching icon IDs.', { query: z.string(), limit: z.number().int().positive().optional() }, async ({ query, limit }) => jsonContent(await searchIcons(query, limit)));
 tool('make_icon', 'Create an ICO, preview PNG, and 256px PNG from an icon source.', {
   source: z.string(), name: z.string().optional(), color: z.string().optional(), bg: z.string().optional(),
-  shape: z.enum(['none', 'square', 'rounded', 'circle']).optional(), radius: z.number().optional(), padding: z.number().optional(), outDir: z.string().optional(),
+  shape: z.enum(['none', 'square', 'rounded', 'circle']).optional(), radius: z.number().optional(), padding: z.number().optional(), outDir: z.string().optional(), pngSize: z.number().int().min(16).max(1024).optional(),
 }, async (args) => {
   const made = await makeIcon(args);
   return { content: [{ type: 'text', text: JSON.stringify({ ico: made.ico, preview: made.preview, png: made.pngs[0] }) }, await imageContent(made.preview)] };

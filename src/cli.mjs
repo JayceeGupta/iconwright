@@ -27,9 +27,9 @@ register('search', async (args) => {
 
 register('make', async (args) => {
   const { values } = parseFlags(args);
-  if (values.help) return 'Usage: iconwright make --source <ref> [--name n] [--color c] [--bg c] [--shape s] [--radius r] [--padding p] [--out dir]';
+  if (values.help) return 'Usage: iconwright make --source <ref> [--name n] [--color c] [--bg c] [--shape s] [--radius r] [--padding p] [--png-size px] [--out dir]';
   if (!values.source) throw new Error('make requires --source <ref>');
-  const result = await makeIcon({ source: values.source, name: values.name, color: values.color, bg: values.bg, shape: values.shape, radius: values.radius === undefined ? undefined : Number(values.radius), padding: values.padding === undefined ? undefined : Number(values.padding), outDir: values.out });
+  const result = await makeIcon({ source: values.source, name: values.name, color: values.color, bg: values.bg, shape: values.shape, radius: values.radius === undefined ? undefined : Number(values.radius), padding: values.padding === undefined ? undefined : Number(values.padding), outDir: values.out, pngSize: values['png-size'] });
   return JSON.stringify({ ico: result.ico, preview: result.preview, png: result.pngs[0] });
 }, 'make --source <ref> [options]');
 

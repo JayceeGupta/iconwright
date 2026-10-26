@@ -1,6 +1,7 @@
 {
   "name": "icon-playground",
   "owner": { "name": "Jayam Gupta" },
+  "metadata": { "description": "Icon Playground: make icons and customize the Windows taskbar and desktop." },
   "plugins": [
     {
       "name": "iconwright",
