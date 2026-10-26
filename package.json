@@ -1,0 +1,55 @@
+{
+  "name": "iconwright",
+  "version": "0.1.0",
+  "description": "Make icons and customize the Windows taskbar and desktop from Claude Code, Codex or any MCP client.",
+  "license": "MIT",
+  "author": "Jayam Gupta",
+  "type": "module",
+  "homepage": "https://github.com/JayceeGupta/iconwright#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JayceeGupta/iconwright.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JayceeGupta/iconwright/issues"
+  },
+  "keywords": [
+    "icons",
+    "ico",
+    "windows",
+    "taskbar",
+    "desktop",
+    "mcp",
+    "claude-code",
+    "codex",
+    "iconify"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "iconwright": "bin/iconwright.mjs",
+    "iconwright-mcp": "bin/iconwright-mcp.mjs"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "scripts/",
+    "skills/",
+    ".claude-plugin/",
+    ".mcp.json",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "site:build": "node site/build.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "png-to-ico": "^3.0.2",
+    "sharp": "^0.35.3",
+    "zod": "^4.6.7"
+  }
+}

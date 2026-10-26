@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "iconwright": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/iconwright-mcp.mjs"]
+    }
+  }
+}

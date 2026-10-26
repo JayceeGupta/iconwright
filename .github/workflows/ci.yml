@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22, 24]
+        exclude:
+          - os: macos-latest
+            node: 20
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: CLI smoke test (icon creation works on every OS)
+        run: node bin/iconwright.mjs make --source test/fixtures/logo.svg --name ci --out ci-out --color "#3b82f6"
+      - name: Windows commands refuse cleanly off Windows
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if node bin/iconwright.mjs status 2> err.txt; then echo "status should fail off Windows"; exit 1; fi
+          grep -q "only runs on Windows" err.txt
+
+  windows-scripts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell scripts parse
+        shell: powershell
+        run: |
+          foreach ($f in Get-ChildItem scripts/win/*.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $errors | ForEach-Object { Write-Error "$($f.Name): $_" }; exit 1 }
+          }
+      - name: C# helper compiles and doctor runs (read-only)
+        shell: powershell
+        run: |
+          $out = powershell -NoProfile -ExecutionPolicy Bypass -File scripts/win/iconwright.ps1 doctor
+          $out
+          $r = $out | ConvertFrom-Json
+          if (-not $r.checks.interop.ok) { exit 1 }
