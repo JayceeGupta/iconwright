@@ -9,7 +9,7 @@
 > "Put my desktop icons in the top-right corner and make them smaller."
 > "Undo all of that."
 
-It works as a **Claude Code plugin**, an **MCP server** (for Codex and other agents) and a plain **command-line tool**.
+It works as a **Claude Code plugin**, an **MCP server** (for Codex and other agents) and a plain **command-line tool**. Website and docs: **[iconwright.guptajayam.com](https://iconwright.guptajayam.com)**.
 
 > **Status: early release (0.1).** Everything below works on the developer's PC (Windows 11). It hasn't been tested on many other setups yet, and pinning relies on an undocumented Windows format. Read [Safety and risks](docs/safety.md) before you use it on a machine you care about.
 

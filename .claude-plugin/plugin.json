@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Make icons and customize the Windows taskbar and desktop: change app icons, pin and reorder taskbar apps, arrange desktop icons.",
   "author": { "name": "Jayam Gupta" },
-  "homepage": "https://github.com/JayceeGupta/iconwright",
+  "homepage": "https://iconwright.guptajayam.com",
   "repository": "https://github.com/JayceeGupta/iconwright",
   "license": "MIT",
   "keywords": ["icons", "windows", "taskbar", "desktop", "mcp"],
