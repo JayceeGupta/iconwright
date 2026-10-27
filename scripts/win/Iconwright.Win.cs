@@ -272,8 +272,33 @@ namespace Iconwright {
     public static bool IconsVisible { get { return !GetFlag(FWF_NOICONS); } set { SetFlags(FWF_NOICONS, !value); } }
 
     public static POINT Spacing() { var p = new POINT(); View().GetSpacing(ref p); return p; }
-    // Primary monitor work area in physical pixels (desktop view coordinates).
-    public static RECT WorkArea() { SetProcessDPIAware(); var r = new RECT(); SystemParametersInfoW(0x30 /*SPI_GETWORKAREA*/, 0, ref r, 0); return r; }
+    // Primary monitor work area, in desktop view coordinates.
+    public static RECT WorkArea() { return Monitors()[0]; }
+
+    [StructLayout(LayoutKind.Sequential)] struct MONITORINFO { public int cbSize; public RECT rcMonitor, rcWork; public uint dwFlags; }
+    delegate bool MonitorEnum(IntPtr hMon, IntPtr hdc, ref RECT clip, IntPtr data);
+    [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnum cb, IntPtr data);
+    [DllImport("user32.dll")] static extern bool GetMonitorInfoW(IntPtr hMon, ref MONITORINFO mi);
+    [DllImport("user32.dll")] static extern int GetSystemMetrics(int i);
+
+    // Work area of every monitor (primary first), in desktop view coordinates: the desktop
+    // view spans the whole virtual screen, so its origin is the virtual screen's top-left.
+    public static RECT[] Monitors() {
+      SetProcessDPIAware();
+      int ox = GetSystemMetrics(76 /*SM_XVIRTUALSCREEN*/), oy = GetSystemMetrics(77 /*SM_YVIRTUALSCREEN*/);
+      var list = new System.Collections.Generic.List<RECT>(); int primary = 0;
+      EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr h, IntPtr dc, ref RECT clip, IntPtr d) => {
+        var mi = new MONITORINFO { cbSize = Marshal.SizeOf(typeof(MONITORINFO)) };
+        if (GetMonitorInfoW(h, ref mi)) {
+          if ((mi.dwFlags & 1 /*MONITORINFOF_PRIMARY*/) != 0) primary = list.Count;
+          list.Add(new RECT { L = mi.rcWork.L - ox, T = mi.rcWork.T - oy, R = mi.rcWork.R - ox, B = mi.rcWork.B - oy });
+        }
+        return true;
+      }, IntPtr.Zero);
+      if (list.Count == 0) { var r = new RECT(); SystemParametersInfoW(0x30 /*SPI_GETWORKAREA*/, 0, ref r, 0); list.Add(r); }
+      if (primary > 0) { var p = list[primary]; list.RemoveAt(primary); list.Insert(0, p); }
+      return list.ToArray();
+    }
     // Ask explorer to persist the desktop layout now (it otherwise only saves on a clean exit).
     public static void SaveState() { ExplorerShell.DesktopView().SaveViewState(); }
   }
@@ -532,6 +557,14 @@ namespace Iconwright {
     }
     // True once explorer has created the taskbar window again.
     public static bool TrayPresent() { return FindWindowW("Shell_TrayWnd", null) != IntPtr.Zero; }
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    // Process id of the explorer.exe that owns the taskbar (0 if there is no taskbar), so a
+    // restart can leave separate-process folder windows alone.
+    public static int TrayProcessId() {
+      IntPtr tray = FindWindowW("Shell_TrayWnd", null); uint pid = 0;
+      if (tray != IntPtr.Zero) GetWindowThreadProcessId(tray, out pid);
+      return (int)pid;
+    }
     static int Lum(int c) { return ((c >> 16) & 0xFF) * 3 + ((c >> 8) & 0xFF) * 6 + (c & 0xFF); }
     public static int Distance(int a, int b) {
       if (a < 0 || b < 0) return 0;

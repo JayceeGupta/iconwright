@@ -102,7 +102,7 @@ register('desktop', async (args) => {
     case 'move':
       if (!item[0] || v.x == null || v.y == null) throw new Error('desktop move <item> --x px --y px');
       return out(await win('desktop-move', { item: item[0], x: v.x, y: v.y }));
-    case 'arrange': return out(await win('desktop-arrange', { ...desktopOpts, by: v.by, corner: v.corner, flow: v.flow }));
+    case 'arrange': return out(await win('desktop-arrange', { ...desktopOpts, by: v.by, corner: v.corner, flow: v.flow, monitor: v.monitor }));
     case 'size': return out(await win('desktop-size', { value: item[0] }));
     case 'options': return out(await win('desktop-options', { autoArrange: v['auto-arrange'], snapToGrid: v.snap, showIcons: v.icons }));
     case 'system':

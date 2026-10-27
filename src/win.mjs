@@ -7,7 +7,7 @@ const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'sc
 const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 export function buildWinArgs(command, { app, query, icon, iconIndex, noRestart, restartCooldown,
-  item, x, y, value, file, by, corner, flow, autoArrange, snapToGrid, showIcons, position, maxWidth } = {}) {
+  item, x, y, value, file, by, corner, flow, autoArrange, snapToGrid, showIcons, position, maxWidth, monitor } = {}) {
   const args = [command];
   const apps = [].concat(app ?? []).filter(Boolean);
   if (apps.length) args.push('-App', apps.map(q).join(','));
@@ -26,6 +26,7 @@ export function buildWinArgs(command, { app, query, icon, iconIndex, noRestart, 
   }
   if (position != null) args.push('-Position', String(Number(position)));
   if (maxWidth != null) args.push('-MaxWidth', String(Number(maxWidth)));
+  if (monitor != null) args.push('-Monitor', String(Number(monitor)));
   return args;
 }
 

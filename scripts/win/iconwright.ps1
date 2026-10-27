@@ -26,7 +26,8 @@ param(
   [string[]]$Item, [int]$X, [int]$Y, [string]$Value, [string]$File,
   [string]$By, [string]$Corner, [string]$Flow,
   [string]$AutoArrange, [string]$SnapToGrid, [string]$ShowIcons,
-  [int]$MaxWidth = 1600          # capture: downscale wider images to this width (0 = full size)
+  [int]$MaxWidth = 1600,         # capture: downscale wider images to this width (0 = full size)
+  [int]$Monitor = 0              # desktop-arrange: which monitor (0 = primary)
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
@@ -133,15 +134,19 @@ function Resolve-App([string]$name) {
   }
 }
 
-# Pinned taskbar shortcuts belonging to the app (match by AppID, then by target exe).
+# Pinned taskbar shortcuts belonging to the app. An AppUserModelID match wins; when both
+# sides have an ID and they differ, it's another app even if the file name or target matches
+# (two apps can share a display name). Without IDs, match by target exe, then by file name.
 function Get-PinnedFor($a, [string]$target, [string]$appId) {
+  $byName = @()
   foreach ($p in [Iconwright.Taskband]::List()) {
     if (-not $p -or -not $p.EndsWith('.lnk') -or -not (Test-Path -LiteralPath $p)) { continue }
     $id = Get-LnkAppId $p
-    if (($appId -and $id -eq $appId) -or
-        ([IO.Path]::GetFileNameWithoutExtension($p) -eq $a.Name) -or
-        ($target -and -not $id -and ([Iconwright.Lnk]::GetTarget($p) -eq $target))) { $p }
+    if ($appId -and $id) { if ($id -eq $appId) { $p }; continue }
+    if ($target -and ([Iconwright.Lnk]::GetTarget($p) -eq $target)) { $p; continue }
+    if ([IO.Path]::GetFileNameWithoutExtension($p) -eq $a.Name) { $byName += $p }
   }
+  if ($byName.Count -eq 1) { $byName[0] }   # a name-only match must be unambiguous
 }
 
 function Test-Writable([string]$path) {
@@ -226,10 +231,25 @@ function Get-TaskbandBackup([string]$name) {
 function Wait-Taskbar([int]$seconds) {
   $until = (Get-Date).AddSeconds($seconds)
   while ((Get-Date) -lt $until) {
-    if ((Get-Process explorer -ErrorAction SilentlyContinue) -and [Iconwright.TaskbarColor]::TrayPresent()) { return $true }
+    if ([Iconwright.TaskbarColor]::TrayPresent()) { return $true }
     Start-Sleep -Milliseconds 250
   }
   $false
+}
+
+# Pinned-folder files before a change, so a failed change can remove what it added.
+function Get-PinnedFiles {
+  if (-not (Test-Path -LiteralPath $PinnedDir)) { return @() }
+  @(Get-ChildItem -LiteralPath $PinnedDir -File -Force | ForEach-Object Name)
+}
+function Restore-PinnedFiles([string[]]$before) {
+  foreach ($f in @(Get-PinnedFiles)) {
+    if ($before -notcontains $f) { Remove-Item -LiteralPath (Join-Path $PinnedDir $f) -Force -ErrorAction SilentlyContinue }
+  }
+  $saved = Join-Path (Join-Path $BackupDir 'pending') 'TaskBar'
+  if (Test-Path -LiteralPath $saved) {
+    Get-ChildItem -LiteralPath $saved -File -Force | Copy-Item -Destination $PinnedDir -Force
+  }
 }
 
 function Get-TaskbandValues {
@@ -244,38 +264,64 @@ function Set-TaskbandValues($v) {
   }
 }
 
-function Invoke-WithExplorerStopped([scriptblock]$action) {
+# Runs a pin-list change safely:
+#   1. backs up the pin list and pinned shortcuts (before anything is touched)
+#   2. $prepare: file changes (new pinned shortcuts), with explorer still running
+#   3. stops the taskbar's explorer.exe, runs $action (registry edits), brings explorer back
+# If $prepare or $action throws, the registry values and pinned-folder files are put back.
+# With -NoRestart the same steps run without stopping explorer.
+function Invoke-PinChange([scriptblock]$prepare, [scriptblock]$action, [switch]$NoBackup) {
   $stamp = Join-Path $Home_ 'last-explorer-restart'
-  if ($RestartCooldown -gt 0 -and (Test-Path -LiteralPath $stamp)) {
+  $restart = -not $NoRestart
+  if ($restart -and $RestartCooldown -gt 0 -and (Test-Path -LiteralPath $stamp)) {
     $wait = $RestartCooldown - ((Get-Date) - (Get-Item -LiteralPath $stamp).LastWriteTime).TotalSeconds
     if ($wait -gt 0) { Start-Sleep -Seconds ([math]::Ceiling($wait)) }
   }
   $colorBefore = [Iconwright.TaskbarColor]::Sample()
   $stylers = Get-StylerProcesses
   New-Item -ItemType Directory -Force $Home_ | Out-Null
-  Set-Content -LiteralPath $stamp -Value (Get-Date -Format o)
-  Backup-Taskband
+  if (-not $NoBackup) { Backup-Taskband }   # refresh changes nothing, so it keeps the existing 'last'
   $snapshot = Get-TaskbandValues
-  try { [Iconwright.Desktop]::SaveState() } catch { }   # a forced kill skips explorer's own save
-  Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
-  Wait-Process -Name explorer -Timeout 5 -ErrorAction SilentlyContinue
-  $failure = $null
-  try { & $action }
-  catch {
-    # Put the pin list back exactly as it was before bringing explorer back.
-    $failure = $_.Exception.Message
-    try { Set-TaskbandValues $snapshot } catch { $failure += " (rollback also failed: $($_.Exception.Message); restore with: iconwright restore-pins --from last)" }
+  $filesBefore = Get-PinnedFiles
+  $failure = $null; $trayBack = $true
+  # Returns '' on success, or text to append to the failure message.
+  $rollback = {
+    try { Set-TaskbandValues $snapshot; Restore-PinnedFiles $filesBefore; '' }
+    catch { " (rollback also failed: $($_.Exception.Message); restore with: iconwright restore-pins --from last)" }
   }
-  finally {
-    # Windows normally restarts the shell by itself; start it only if that didn't happen,
-    # since a second explorer.exe would just open a File Explorer window.
-    if (-not (Wait-Taskbar 8)) {
-      if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
-      [void](Wait-Taskbar 20)
+  try { if ($prepare) { & $prepare } } catch { $failure = $_.Exception.Message; $failure += (& $rollback) }
+  if (-not $failure -and -not $restart) {
+    try { & $action } catch { $failure = $_.Exception.Message; $failure += (& $rollback) }
+  }
+  if (-not $failure -and $restart) {
+    Set-Content -LiteralPath $stamp -Value (Get-Date -Format o)
+    try { [Iconwright.Desktop]::SaveState() } catch { }   # a forced kill skips explorer's own save
+    # Stop only the explorer that owns the taskbar; separate-process folder windows survive.
+    $shellPid = [Iconwright.TaskbarColor]::TrayProcessId()
+    if ($shellPid) { Stop-Process -Id $shellPid -Force -ErrorAction SilentlyContinue; Wait-Process -Id $shellPid -Timeout 5 -ErrorAction SilentlyContinue }
+    else { Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue; Wait-Process -Name explorer -Timeout 5 -ErrorAction SilentlyContinue }
+    try { & $action }
+    catch {
+      # Put the pin list back exactly as it was before bringing explorer back.
+      $failure = $_.Exception.Message
+      $failure += (& $rollback)
+    }
+    finally {
+      # Windows normally restarts the shell by itself. Start it only if that didn't happen:
+      # a second explorer.exe while a shell runs would just open a File Explorer window.
+      if (-not (Wait-Taskbar 8)) {
+        Start-Process explorer.exe
+        $trayBack = Wait-Taskbar 20
+      }
     }
   }
-  Complete-TaskbandBackup (-not $failure)
+  if (-not $NoBackup) { Complete-TaskbandBackup (-not $failure) }
   if ($failure) { Fail "Taskbar change failed and was rolled back: $failure" }
+  if (-not $trayBack) {
+    Fail ("The pin list was changed, but the taskbar did not come back within 30 s. Press Ctrl+Shift+Esc, " +
+          "choose 'Run new task', enter explorer.exe. To undo the change: iconwright restore-pins")
+  }
+  if (-not $restart) { $script:RestartReport = $null; return }
   # Give the taskbar (and any styling tool) time to settle, then compare.
   Start-Sleep -Seconds 3
   $colorAfter = [Iconwright.TaskbarColor]::Sample()
@@ -308,16 +354,20 @@ function Invoke-WithExplorerStopped([scriptblock]$action) {
 function Set-AppIcon($info, [string]$ico, [int]$idx) {
   $ico = (Resolve-Path -LiteralPath $ico).Path
   $state = Get-State
-  $updated = @(); $skipped = @()
+  $updated = @(); $skipped = @(); $targets = @()
   foreach ($l in @($info.startMenu) + @($info.pinned)) {
     if (-not $l) { continue }
     if (-not (Test-Writable $l)) { $skipped += $l; continue }
     Remember-Original $state $l
+    $targets += $l
+  }
+  # Originals are on disk before any shortcut changes, so restore works even if we stop halfway.
+  Save-State $state
+  foreach ($l in $targets) {
     [Iconwright.Lnk]::SetIcon($l, $ico, $idx)
     [Iconwright.Refresh]::Item($l)
     $updated += $l
   }
-  Save-State $state
   # Running windows pick up the Start Menu shortcut's icon live; pinned-but-closed
   # buttons re-read their shortcut on the next explorer start. Keep the pin cache in sync.
   foreach ($p in @($info.pinned)) { if ($p) { [void][Iconwright.Taskband]::Sync($p) } }
@@ -335,18 +385,22 @@ function New-PinShortcut($info) {
     Copy-Item -LiteralPath $info.startMenu[0] -Destination $dst -Force
   } elseif ($info.target) {
     [Iconwright.Lnk]::Save($dst, $info.target, $null, (Split-Path $info.target), $null, 0, $info.explicitId, $info.name)
-  } else { Fail "Can't build a shortcut for '$($info.name)'" }
+  } else { throw "Can't build a shortcut for '$($info.name)'" }
   if ($Icon) { [Iconwright.Lnk]::SetIcon($dst, (Resolve-Path -LiteralPath $Icon).Path, $IconIndex) }
   # The pin entry must carry the AppID explorer uses for the app's windows.
   [pscustomobject]@{ path = $dst; appId = $(if ($info.explicitId) { $info.explicitId } else { $info.appId }) }
 }
 
 function Cmd-Pin($infos) {
-  $new = @(foreach ($i in $infos) { $d = New-PinShortcut $i; if ($d) { $d } })
-  if ($new.Count) {
-    $apply = { foreach ($d in $new) { [Iconwright.Taskband]::Append($d.path, $d.appId) } }
-    if ($NoRestart) { & $apply } else { Invoke-WithExplorerStopped $apply }
+  $todo = @($infos | Where-Object { -not @($_.pinned).Count })
+  # Shortcuts are written inside Invoke-PinChange, after the backup, so a failure removes them again.
+  $script:NewPins = @()
+  if ($todo.Count) {
+    Invoke-PinChange { $script:NewPins = @(foreach ($i in $todo) { New-PinShortcut $i }) } {
+      foreach ($d in $script:NewPins) { [Iconwright.Taskband]::Append($d.path, $d.appId) }
+    }
   }
+  $new = $script:NewPins
   $list = [Iconwright.Taskband]::List()
   [pscustomobject]@{
     ok = @($new | Where-Object { $list -notcontains $_.path }).Count -eq 0
@@ -368,8 +422,7 @@ function Cmd-Reorder($infos, [int]$pos) {
   $pos = [math]::Max(0, [math]::Min($pos, $rest.Count))
   $new = @($rest | Select-Object -First $pos) + $move + @($rest | Select-Object -Skip $pos)
   if (($new -join '|') -eq ($list -join '|')) { return [pscustomobject]@{ ok = $true; changed = $false; order = Get-PinNames $new } }
-  $apply = { [Iconwright.Taskband]::SetOrder([string[]]$new) }
-  if ($NoRestart) { & $apply } else { Invoke-WithExplorerStopped $apply }
+  Invoke-PinChange $null { [Iconwright.Taskband]::SetOrder([string[]]$new) }
   $now = @([Iconwright.Taskband]::List())
   [pscustomobject]@{ ok = (($now -join '|') -eq ($new -join '|')); changed = $true; order = Get-PinNames $now; explorer = $script:RestartReport }
 }
@@ -378,8 +431,7 @@ function Get-PinNames($paths) { @($paths | ForEach-Object { [IO.Path]::GetFileNa
 function Cmd-Unpin($infos) {
   $pins = @($infos | ForEach-Object { @($_.pinned) } | Where-Object { $_ })
   if (-not $pins.Count) { return [pscustomobject]@{ ok = $true; already = $true } }
-  $apply = { foreach ($p in $pins) { [void][Iconwright.Taskband]::Remove($p) } }
-  if ($NoRestart) { & $apply } else { Invoke-WithExplorerStopped $apply }
+  Invoke-PinChange $null { foreach ($p in $pins) { [void][Iconwright.Taskband]::Remove($p) } }
   foreach ($p in $pins) { Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue }
   [pscustomobject]@{ ok = $true; removed = $pins; explorer = $script:RestartReport }
 }
@@ -416,12 +468,13 @@ function Cmd-RestorePins([string]$from) {
   $folder = Join-Path $work 'TaskBar'
   if (Test-Path -LiteralPath $b.folder) { Copy-Item -LiteralPath $b.folder -Destination $folder -Recurse }
   $before = Get-PinNames @([Iconwright.Taskband]::List())
-  Invoke-WithExplorerStopped {
-    # Shortcuts first (the pin list points at them), then the registry values.
+  # Shortcuts first (the pin list points at them), then the registry values.
+  Invoke-PinChange {
     if (Test-Path -LiteralPath $folder) {
       New-Item -ItemType Directory -Force $PinnedDir | Out-Null
       Get-ChildItem -LiteralPath $folder -Force | Copy-Item -Destination $PinnedDir -Recurse -Force
     }
+  } {
     if ((Invoke-Reg @('import', $reg)) -ne 0) { throw "reg import failed for $reg" }
   }
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
@@ -535,7 +588,7 @@ switch -Wildcard ($Command.ToLower()) {
   'refresh' {
     # Re-reads pinned shortcuts (needed for apps without an AppUserModelID).
     foreach ($p in [Iconwright.Taskband]::List()) { if ($p -and (Test-Path -LiteralPath $p)) { [void][Iconwright.Taskband]::Sync($p) } }
-    Invoke-WithExplorerStopped {}
+    Invoke-PinChange $null {} -NoBackup
     Out-Json ([pscustomobject]@{ ok = $true; explorer = $script:RestartReport })
   }
   'status' {

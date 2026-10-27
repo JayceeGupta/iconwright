@@ -47,6 +47,7 @@ function Get-DesktopInfo {
     iconsVisible = [Iconwright.Desktop]::IconsVisible
     grid = [pscustomobject]@{ x = $sp.X; y = $sp.Y }
     workArea = [pscustomobject]@{ left = $wa.L; top = $wa.T; right = $wa.R; bottom = $wa.B }
+    monitors = @([Iconwright.Desktop]::Monitors() | ForEach-Object { [pscustomobject]@{ left = $_.L; top = $_.T; right = $_.R; bottom = $_.B } })
     systemIcons = @(foreach ($k in $SystemIcons.Keys) {
       $v = if ($hidden) { $hidden.PSObject.Properties[$SystemIcons[$k]] } else { $null }
       [pscustomobject]@{ name = $k; shown = -not ($v -and $v.Value -eq 1) } })
@@ -54,12 +55,17 @@ function Get-DesktopInfo {
   }
 }
 
-# Lays items out on the grid. Order: explicit -Item list first, then the rest sorted by -By.
-function Invoke-DesktopArrange([string[]]$first, [string]$by, [string]$corner, [string]$flow) {
-  $items = Get-DesktopItems
+# Lays items out on one monitor's grid (0 = primary). Order: explicit -Item list first, then the
+# other items already on that monitor, sorted by -By. Items on other monitors are left alone.
+function Invoke-DesktopArrange([string[]]$first, [string]$by, [string]$corner, [string]$flow, [int]$monitor) {
+  $mons = @([Iconwright.Desktop]::Monitors())
+  if ($monitor -lt 0 -or $monitor -ge $mons.Count) { Fail "Monitor $monitor doesn't exist; this PC has $($mons.Count) (0 = primary)." }
+  $wa = $mons[$monitor]
+  $onMonitor = { param($it) $mons.Count -eq 1 -or ($it.x -ge $wa.L -and $it.x -lt $wa.R -and $it.y -ge $wa.T -and $it.y -lt $wa.B) }
+  $items = @(Get-DesktopItems)
   $ordered = New-Object System.Collections.ArrayList
   foreach ($k in @($first | Where-Object { $_ })) { $it = Find-DesktopItem $k $items; if ($ordered -notcontains $it) { [void]$ordered.Add($it) } }
-  $rest = @($items | Where-Object { $ordered -notcontains $_ })
+  $rest = @($items | Where-Object { $ordered -notcontains $_ -and (& $onMonitor $_) })
   switch ($by) {
     'type'  { $rest = @($rest | Sort-Object { [IO.Path]::GetExtension($_.path) }, name) }
     'none'  { $rest = @($rest | Sort-Object y, x) }   # keep current visual order
@@ -67,7 +73,7 @@ function Invoke-DesktopArrange([string[]]$first, [string]$by, [string]$corner, [
   }
   foreach ($r in $rest) { [void]$ordered.Add($r) }
 
-  $sp = [Iconwright.Desktop]::Spacing(); $wa = [Iconwright.Desktop]::WorkArea()
+  $sp = [Iconwright.Desktop]::Spacing()
   $rows = [math]::Max(1, [math]::Floor(($wa.B - $wa.T) / $sp.Y))
   $cols = [math]::Max(1, [math]::Floor(($wa.R - $wa.L) / $sp.X))
   $keys = @(); $xs = @(); $ys = @(); $i = 0
@@ -82,6 +88,35 @@ function Invoke-DesktopArrange([string[]]$first, [string]$by, [string]$corner, [
   [pscustomobject]@{ arranged = $n; items = @(Get-DesktopItems) }
 }
 
+# Text files (.url) are rewritten in the encoding they came in: BOM-marked UTF-8/UTF-16 stay
+# that way, anything else is the system ANSI code page, which is what Windows writes.
+function Read-TextFile([string]$path) {
+  $bytes = [IO.File]::ReadAllBytes($path)
+  $enc = [Text.Encoding]::Default
+  if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { $enc = New-Object Text.UTF8Encoding($true) }
+  elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) { $enc = [Text.Encoding]::Unicode }
+  elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF) { $enc = [Text.Encoding]::BigEndianUnicode }
+  $skip = $enc.GetPreamble().Length
+  $text = $enc.GetString($bytes, $skip, $bytes.Length - $skip)
+  $lines = [Collections.Generic.List[string]]@($text -split "`r?`n")
+  if ($lines.Count -and $lines[$lines.Count - 1] -eq '') { $lines.RemoveAt($lines.Count - 1) }
+  [pscustomobject]@{ lines = $lines; encoding = $enc }
+}
+function Write-TextFile([string]$path, $lines, $encoding) {
+  [IO.File]::WriteAllText($path, ((@($lines) -join "`r`n") + "`r`n"), $encoding)
+}
+# Puts IconFile/IconIndex right after [InternetShortcut] (or removes them when $file is empty).
+function Set-UrlIcon([string]$path, [string]$file, [int]$index) {
+  $t = Read-TextFile $path
+  $lines = [Collections.Generic.List[string]]@($t.lines | Where-Object { $_ -notlike 'IconFile=*' -and $_ -notlike 'IconIndex=*' })
+  if ($file) {
+    $at = $lines.IndexOf('[InternetShortcut]')
+    if ($at -lt 0) { $lines.Insert(0, '[InternetShortcut]'); $at = 0 }
+    $lines.Insert($at + 1, "IconIndex=$index"); $lines.Insert($at + 1, "IconFile=$file")
+  }
+  Write-TextFile $path $lines $t.encoding
+}
+
 function Set-DesktopIcon([string]$key, [string]$ico, [int]$idx) {
   $state = Get-State
   $sys = Get-SystemIconKey $key
@@ -90,49 +125,62 @@ function Set-DesktopIcon([string]$key, [string]$ico, [int]$idx) {
     $k = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\$clsid\DefaultIcon"
     $id = "clsid:$clsid"
     if (-not $state.originals.PSObject.Properties[$id]) {
+      # Each value with its registry type, so restore recreates it exactly.
       $orig = @{}
-      if (Test-Path -LiteralPath $k) { (Get-Item -LiteralPath $k).Property | ForEach-Object { $orig[$_] = (Get-Item -LiteralPath $k).GetValue($_, $null, 'DoNotExpandEnvironmentNames') } }
-      $state.originals | Add-Member -NotePropertyName $id -NotePropertyValue ($orig | ConvertTo-Json -Compress)
+      if (Test-Path -LiteralPath $k) {
+        $item = Get-Item -LiteralPath $k
+        foreach ($n in $item.Property) { $orig[$n] = @{ value = $item.GetValue($n, $null, 'DoNotExpandEnvironmentNames'); kind = [string]$item.GetValueKind($n) } }
+      }
+      $state.originals | Add-Member -NotePropertyName $id -NotePropertyValue ($orig | ConvertTo-Json -Compress -Depth 4)
+      Save-State $state
     }
     New-Item -Path $k -Force | Out-Null
     $v = "$ico,$idx"
     Set-ItemProperty -LiteralPath $k -Name '(default)' -Value $v
     if ($sys -eq 'recycle-bin') { Set-ItemProperty -LiteralPath $k -Name 'empty' -Value $v; Set-ItemProperty -LiteralPath $k -Name 'full' -Value $v }
-    Save-State $state; [Iconwright.Refresh]::Associations()
+    [Iconwright.Refresh]::Associations()
     return [pscustomobject]@{ item = $sys; icon = $ico }
   }
   $it = Find-DesktopItem $key (Get-DesktopItems)
   $p = $it.path
-  if ($p -like '*.lnk') {
-    Remember-Original $state $p; [Iconwright.Lnk]::SetIcon($p, $ico, $idx)
-  } elseif ($p -like '*.url') {
-    $lines = [Collections.Generic.List[string]](Get-Content -LiteralPath $p)
-    if (-not $state.originals.PSObject.Properties[$p]) {
-      $f = ($lines | Where-Object { $_ -like 'IconFile=*' }) -replace '^IconFile=', ''
-      $n = ($lines | Where-Object { $_ -like 'IconIndex=*' }) -replace '^IconIndex=', ''
-      $state.originals | Add-Member -NotePropertyName $p -NotePropertyValue $(if ($f) { "$f,$(if ($n) { $n } else { 0 })" } else { '' })
+  $isFolder = Test-Path -LiteralPath $p -PathType Container
+  if ($p -notlike '*.lnk' -and $p -notlike '*.url' -and -not $isFolder) {
+    Fail "'$($it.name)' is a regular file; its icon comes from its file type. Use a shortcut to it instead."
+  }
+  # Record the original first and save it, so restore works even if the change fails halfway.
+  if (-not $state.originals.PSObject.Properties[$p]) {
+    if ($p -like '*.lnk') { $orig = [Iconwright.Lnk]::GetIcon($p) }
+    elseif ($p -like '*.url') {
+      $lines = (Read-TextFile $p).lines
+      $f = @($lines | Where-Object { $_ -like 'IconFile=*' } | ForEach-Object { $_ -replace '^IconFile=', '' } | Select-Object -First 1)
+      $n = @($lines | Where-Object { $_ -like 'IconIndex=*' } | ForEach-Object { $_ -replace '^IconIndex=', '' } | Select-Object -First 1)
+      $orig = if ($f.Count -and $f[0]) { "$($f[0]),$(if ($n.Count -and $n[0]) { $n[0] } else { 0 })" } else { '' }
+    } else {
+      # Folders: the whole desktop.ini (or its absence) plus both items' attributes.
+      $ini = Join-Path $p 'desktop.ini'
+      $o = [ordered]@{ dirAttr = [int](Get-Item -LiteralPath $p -Force).Attributes; ini = $null; iniAttr = $null }
+      if (Test-Path -LiteralPath $ini) {
+        $o.ini = [Convert]::ToBase64String([IO.File]::ReadAllBytes($ini))
+        $o.iniAttr = [int](Get-Item -LiteralPath $ini -Force).Attributes
+      }
+      $orig = 'folder:' + (ConvertTo-Json -InputObject ([pscustomobject]$o) -Compress)
     }
-    $lines = [Collections.Generic.List[string]]@($lines | Where-Object { $_ -notlike 'IconFile=*' -and $_ -notlike 'IconIndex=*' })
-    $at = [math]::Max(0, $lines.IndexOf('[InternetShortcut]')) + 1
-    $lines.Insert($at, "IconIndex=$idx"); $lines.Insert($at, "IconFile=$ico")
-    Set-Content -LiteralPath $p -Value $lines -Encoding ASCII
-  } elseif (Test-Path -LiteralPath $p -PathType Container) {
+    $state.originals | Add-Member -NotePropertyName $p -NotePropertyValue ([string]$orig)
+    Save-State $state
+  }
+  if ($p -like '*.lnk') { [Iconwright.Lnk]::SetIcon($p, $ico, $idx) }
+  elseif ($p -like '*.url') { Set-UrlIcon $p $ico $idx }
+  else {
     $ini = Join-Path $p 'desktop.ini'
-    if (-not $state.originals.PSObject.Properties[$p]) {
-      $old = if (Test-Path -LiteralPath $ini) { (Get-Content -LiteralPath $ini | Where-Object { $_ -like 'IconResource=*' }) -replace '^IconResource=', '' } else { '' }
-      $state.originals | Add-Member -NotePropertyName $p -NotePropertyValue ([string]$old)
-    }
     if (Test-Path -LiteralPath $ini) { (Get-Item -LiteralPath $ini -Force).Attributes = 'Normal' }
     $body = if (Test-Path -LiteralPath $ini) { @(Get-Content -LiteralPath $ini | Where-Object { $_ -notlike 'IconResource=*' }) } else { @() }
     if ($body -notcontains '[.ShellClassInfo]') { $body = @('[.ShellClassInfo]') + $body }
     $i = [array]::IndexOf($body, '[.ShellClassInfo]'); $body = @($body[0..$i]) + @("IconResource=$ico,$idx") + @($body | Select-Object -Skip ($i + 1))
     Set-Content -LiteralPath $ini -Value $body -Encoding Unicode
     (Get-Item -LiteralPath $ini -Force).Attributes = 'Hidden, System'
-    $d = Get-Item -LiteralPath $p; $d.Attributes = $d.Attributes -bor [IO.FileAttributes]::ReadOnly
-  } else {
-    Fail "'$($it.name)' is a regular file; its icon comes from its file type. Use a shortcut to it instead."
+    $d = Get-Item -LiteralPath $p -Force; $d.Attributes = $d.Attributes -bor [IO.FileAttributes]::ReadOnly
   }
-  Save-State $state; [Iconwright.Refresh]::Item($p)
+  [Iconwright.Refresh]::Item($p)
   [pscustomobject]@{ item = $it.name; path = $p; icon = $ico }
 }
 
@@ -143,14 +191,17 @@ function Restore-DesktopIcon([string]$key) {
     $clsid = $SystemIcons[$sys]; $id = "clsid:$clsid"
     $k = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CLSID\$clsid\DefaultIcon"
     $o = $state.originals.PSObject.Properties[$id]
-    if (-not $o) { return [pscustomobject]@{ restored = $false } }
+    if (-not $o) { return [pscustomobject]@{ restored = $false; item = $sys } }
     Remove-Item -LiteralPath $k -Recurse -Force -ErrorAction SilentlyContinue
     $vals = $o.Value | ConvertFrom-Json
     if ($vals -and @($vals.PSObject.Properties).Count) {
       New-Item -Path $k -Force | Out-Null
       foreach ($pp in $vals.PSObject.Properties) {
         $name = if ($pp.Name -eq '') { '(default)' } else { $pp.Name }
-        New-ItemProperty -LiteralPath $k -Name $name -Value $pp.Value -PropertyType ExpandString -Force | Out-Null
+        # Older state stored plain strings (no type); those were REG_EXPAND_SZ.
+        if ($pp.Value -is [pscustomobject] -and $pp.Value.PSObject.Properties['kind']) { $val = $pp.Value.value; $kind = $pp.Value.kind }
+        else { $val = $pp.Value; $kind = 'ExpandString' }
+        New-ItemProperty -LiteralPath $k -Name $name -Value $val -PropertyType $kind -Force | Out-Null
       }
     }
     $state.originals.PSObject.Properties.Remove($id); Save-State $state; [Iconwright.Refresh]::Associations()
@@ -159,21 +210,31 @@ function Restore-DesktopIcon([string]$key) {
   $it = Find-DesktopItem $key (Get-DesktopItems); $p = $it.path
   $o = $state.originals.PSObject.Properties[$p]
   if (-not $o) { return [pscustomobject]@{ restored = $false; item = $it.name } }
-  $v = [string]$o.Value; $f = ''; $n = 0
-  if ($v -match '^(.*),(-?\d+)$') { $f = $Matches[1]; $n = [int]$Matches[2] } elseif ($v) { $f = $v }
-  if ($p -like '*.lnk') { [Iconwright.Lnk]::SetIcon($p, $f, $n) }
-  elseif ($p -like '*.url') {
-    $lines = @(Get-Content -LiteralPath $p | Where-Object { $_ -notlike 'IconFile=*' -and $_ -notlike 'IconIndex=*' })
-    if ($f) { $lines += "IconFile=$f"; $lines += "IconIndex=$n" }
-    Set-Content -LiteralPath $p -Value $lines -Encoding ASCII
-  } else {
+  $v = [string]$o.Value
+  if ($v.StartsWith('folder:')) {
+    $f = $v.Substring(7) | ConvertFrom-Json
     $ini = Join-Path $p 'desktop.ini'
-    if (Test-Path -LiteralPath $ini) {
-      (Get-Item -LiteralPath $ini -Force).Attributes = 'Normal'
-      $body = @(Get-Content -LiteralPath $ini | Where-Object { $_ -notlike 'IconResource=*' })
-      if ($v) { $i = [array]::IndexOf($body, '[.ShellClassInfo]'); $body = @($body[0..$i]) + @("IconResource=$v") + @($body | Select-Object -Skip ($i + 1)) }
-      Set-Content -LiteralPath $ini -Value $body -Encoding Unicode
-      (Get-Item -LiteralPath $ini -Force).Attributes = 'Hidden, System'
+    if (Test-Path -LiteralPath $ini) { (Get-Item -LiteralPath $ini -Force).Attributes = 'Normal' }
+    if ($f.ini) {
+      [IO.File]::WriteAllBytes($ini, [Convert]::FromBase64String($f.ini))
+      (Get-Item -LiteralPath $ini -Force).Attributes = [IO.FileAttributes][int]$f.iniAttr
+    } else { Remove-Item -LiteralPath $ini -Force -ErrorAction SilentlyContinue }
+    (Get-Item -LiteralPath $p -Force).Attributes = [IO.FileAttributes][int]$f.dirAttr
+  } else {
+    $file = ''; $n = 0
+    if ($v -match '^(.*),(-?\d+)$') { $file = $Matches[1]; $n = [int]$Matches[2] } elseif ($v) { $file = $v }
+    if ($p -like '*.lnk') { [Iconwright.Lnk]::SetIcon($p, $file, $n) }
+    elseif ($p -like '*.url') { Set-UrlIcon $p $file $n }
+    else {
+      # Folder changed by an older version, which only kept the previous IconResource.
+      $ini = Join-Path $p 'desktop.ini'
+      if (Test-Path -LiteralPath $ini) {
+        (Get-Item -LiteralPath $ini -Force).Attributes = 'Normal'
+        $body = @(Get-Content -LiteralPath $ini | Where-Object { $_ -notlike 'IconResource=*' })
+        if ($v) { $i = [array]::IndexOf($body, '[.ShellClassInfo]'); $body = @($body[0..$i]) + @("IconResource=$v") + @($body | Select-Object -Skip ($i + 1)) }
+        Set-Content -LiteralPath $ini -Value $body -Encoding Unicode
+        (Get-Item -LiteralPath $ini -Force).Attributes = 'Hidden, System'
+      }
     }
   }
   $state.originals.PSObject.Properties.Remove($p); Save-State $state; [Iconwright.Refresh]::Item($p)
@@ -203,7 +264,7 @@ function Invoke-DesktopCommand([string]$sub) {
       [void][Iconwright.Desktop]::Move([string[]]@($it.path), [int[]]@($X), [int[]]@($Y)); Save-Desktop
       Out-Json (Get-DesktopItems | Where-Object { $_.path -eq $it.path })
     }
-    'arrange' { Out-Json (Invoke-DesktopArrange $Item $(if ($By) { $By } else { 'name' }) $(if ($Corner) { $Corner } else { 'top-left' }) $(if ($Flow) { $Flow } else { 'columns' })) }
+    'arrange' { Out-Json (Invoke-DesktopArrange $Item $(if ($By) { $By } else { 'name' }) $(if ($Corner) { $Corner } else { 'top-left' }) $(if ($Flow) { $Flow } else { 'columns' }) $Monitor) }
     'size' {
       $map = @{ small = 32; medium = 48; large = 96; xl = 128; huge = 256 }
       $px = if ($map.ContainsKey("$Value".ToLower())) { $map["$Value".ToLower()] } else { [int]$Value }
