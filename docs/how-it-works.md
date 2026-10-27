@@ -18,7 +18,15 @@ This page explains how iconwright does each thing, in plain terms. For byte-leve
 
 - The **MCP server** and the **CLI** are two front doors to the same code. Agents use MCP; people and scripts use the CLI. Both return compact JSON.
 - The **icon maker** is plain Node.js, so it runs anywhere.
-- The **Windows layer** is a PowerShell script plus a small C# helper. The helper is compiled once on first use and cached in `%LOCALAPPDATA%\iconwright\bin`. It does the low-level work: shortcut files, the pinned-apps list, the desktop view and screenshots.
+- The **Windows layer** is a PowerShell script plus a small C# helper. The helper is compiled once on first use and cached in `%LOCALAPPDATA%\iconwright\bin`. It does the low-level work: shortcut files, the pinned-apps list, the desktop view, icon extraction and screenshots.
+
+### Speed: one PowerShell for the whole session
+
+Starting PowerShell takes about a second. The CLI starts one per command, which is fine for people. The MCP server instead keeps **one PowerShell process running** and sends it requests as lines of JSON. Most calls then take 50 to 600 ms instead of 2 to 3 seconds. After any command that restarts Explorer, that process is retired and a fresh one starts on the next call, so nothing in it refers to the old Explorer. Requests run one at a time; a request that takes over 5 minutes stops the process and reports that the change may be incomplete.
+
+### Strict inputs
+
+Every MCP tool rejects arguments it doesn't know, and the CLI rejects unknown options. A typo like `colour` fails with an error instead of being silently ignored. Each tool also tells the client whether it only reads, changes something, or restarts Explorer.
 
 ## Making an icon
 
@@ -46,6 +54,10 @@ Where the change shows up depends on the app:
 - **Pinned apps that aren't running, and older apps without an ID**: Explorer reads the pinned shortcut only when it starts. iconwright tells the agent with a `hint`, and one `refresh` (an Explorer restart) applies it. If several apps need it, the agent makes all the changes first and refreshes once.
 - **Store apps**: the pinned icon changes. The running window may keep the app's own icon, because Store apps declare it in their package.
 
+### Restyling an app's own icon
+
+With `source: "app"`, iconwright starts from the icon the app had before iconwright changed it, or its current one if it hasn't, looking at the pinned shortcut first since that's what the taskbar shows. If that's an `.ico` file, it's used directly. If it's inside an `.exe` or `.dll`, the 256 px version is extracted with its transparency. For Store apps, Windows' shell provides the image. The result is recolored like any other source. Several apps are handled in one request, and the agent gets one image comparing them all.
+
 ## Pinning, unpinning and reordering
 
 There's no official way for a program to pin apps to the Windows 11 taskbar. Windows has a pinning interface, but it ignores calls from outside Explorer itself, and the "Pin to taskbar" menu item can't be triggered by other programs.
@@ -62,10 +74,13 @@ New pins need three small tags Explorer adds when you pin by hand ("pinned by th
 
 ### What keeps it safe
 
-- **Backups.** `backups\original` is saved before iconwright's first change and kept forever. `backups\last` is replaced before every successful change. `restore-pins` puts either one back.
+- **Backups.** `backups\original` is saved before iconwright's first change and kept forever. `backups\last` is replaced only after a change succeeds. `restore-pins` puts either one back. Backups are taken before any file is touched.
 - **Strict reading.** If the list contains anything iconwright doesn't fully understand, it refuses to change it rather than risk dropping pins.
-- **Rollback.** If anything fails while Explorer is stopped, the original bytes are written back before Explorer restarts.
-- **One at a time.** A system-wide lock means two changes can never overlap, even if an agent sends them in parallel.
+- **Rollback.** If anything fails, the original registry bytes and pinned shortcut files are put back before Explorer restarts.
+- **Only the taskbar process restarts.** iconwright stops the one `explorer.exe` that owns the taskbar. If you've set File Explorer to open folders in a separate process, those windows stay open.
+- **It checks the taskbar came back.** If it doesn't within 30 seconds, iconwright says so and explains how to start it, instead of reporting success.
+- **One at a time.** A system-wide lock means two requests can never overlap, even if an agent sends them in parallel. Reads wait too, so they never see a half-restarted taskbar.
+- **Works in a trimmed environment.** Some MCP clients start servers with very few environment variables. Without one of them (`PATHEXT`), Windows PowerShell silently refuses to run programs like `reg.exe`. iconwright fills these in, and `doctor` checks for it.
 - **Styling check.** The taskbar color is sampled before and after the restart, to notice when a styling tool like TranslucentTB switched itself off. iconwright restarts it if so.
 
 ## The desktop
@@ -106,7 +121,8 @@ Showing and hiding the system icons uses the same setting as Windows' *Desktop i
 | `src/cli.mjs`, `src/cli-win.mjs` | CLI commands |
 | `src/source.mjs`, `src/render.mjs`, `src/ico.mjs`, `src/sheet.mjs` | Icon maker |
 | `src/apply.mjs` | "Make an icon and apply it" for apps and desktop items |
-| `src/win.mjs` | Runs the Windows layer and reads its JSON |
+| `src/win.mjs` | Runs the Windows layer: one process per call (CLI) or a long-lived worker (MCP) |
+| `src/args.mjs` | Strict CLI option parsing |
 | `src/output.mjs` | Tidies results for agents (forward-slash paths, no empty fields) |
 | `scripts/win/iconwright.ps1` | Windows layer: apps, icons, pins, backups, Explorer restarts, checks |
 | `scripts/win/desktop.ps1` | Windows layer: desktop |

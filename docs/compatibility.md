@@ -30,6 +30,11 @@ All on one PC: **Windows 11 build 26200**, 200% display scaling, one monitor, En
 | Roll back a failed pin-list write | Forced failure; the registry bytes came back identical |
 | Desktop: move, arrange, size, auto-arrange, hide icons, show and hide system icons, re-icon a shortcut, restore, save and load a layout | Seen on screen (desktop screenshots) |
 | `restore --all` | Icon read back after restoring |
+| Restyle two pinned apps at once from their own icons, then restore (MCP) | Icon settings read back: changed, then exactly the originals |
+| Extract an app's own icon (custom `.ico`, `.exe` resources, Steam) | Images checked by eye: 256 px with transparency |
+| Desktop `.url` with non-ASCII text, and a folder without `desktop.ini`: set and restore | Files compared byte for byte after restore |
+| Pin and unpin through MCP with the trimmed environment MCP clients use | Pin count read back |
+| A failed pin-list change | Forced failure: registry bytes and pinned shortcut files came back; the `last` backup was untouched |
 | TranslucentTB failsafe detection | Seen on screen |
 | Fresh install as a Claude Code plugin (local marketplace) | Installed into a clean Claude config; MCP server connected; an agent used `doctor`, `taskbar_status` and `capture` |
 | Codex through MCP | Registered with `codex mcp add`; an agent used `doctor`, `taskbar_status` and `capture` |
@@ -38,7 +43,7 @@ All on one PC: **Windows 11 build 26200**, 200% display scaling, one monitor, En
 ## Not tested yet
 
 - The **stock Windows 11 taskbar** (without StartAllBack). The pin format is Windows' own, so it's expected to work, but it hasn't been checked.
-- **Windows 10**, **multiple monitors**, **non-English Windows**, **100% and 150% scaling**.
+- **Windows 10**, **multiple monitors** (arranging per monitor is implemented but untested), **non-English Windows**, **100% and 150% scaling**.
 - **Explorer Patcher**, **Windhawk** taskbar mods, **Start11**.
 - **Pinning when no app is pinned yet.** iconwright stops with a clear error by design.
 - Running as **administrator**, and shortcuts shared by all users.

@@ -94,6 +94,16 @@ What happens:
 - It points the app's Start Menu shortcut and pinned shortcut at the new icon. It remembers the old icon first.
 - If Spotify is running, its taskbar button changes right away. Some older apps only show the change after Explorer restarts. When that's the case, the result includes a `hint`, and running `refresh` once applies it.
 
+### Several apps at once
+
+Give `apply` several apps. With `--source app`, each app's own icon is recolored, which is how "make all my taskbar icons white" works:
+
+```bash
+node bin/iconwright.mjs apply "Spotify" "Discord" "Steam" --source app --color white
+```
+
+Over MCP this is one `app_apply_icon` call, and the agent gets a single image comparing all the new icons.
+
 ### Want to see it first?
 
 `make` creates the icon without applying it, and returns a preview image of the icon at 48 and 24 px on dark and light backgrounds:

@@ -18,7 +18,7 @@ It works as a **Claude Code plugin**, an **MCP server** (for Codex and other age
 | | |
 |---|---|
 | **Make icons** (any OS) | Turn an [Iconify](https://icon-sets.iconify.design) icon name, SVG, PNG, JPEG, WebP or existing `.ico` into a proper Windows `.ico` (16 to 256 px). Recolor it, add a rounded or circle background, preview it on dark and light. |
-| **App icons** (Windows) | Change an app's icon on the taskbar, Start Menu and pinned shortcut. Running apps usually update instantly. |
+| **App icons** (Windows) | Change an app's icon on the taskbar, Start Menu and pinned shortcut. Restyle many apps in one go, from new artwork or from each app's own icon ("make all my taskbar icons white"). Running apps usually update instantly. |
 | **Taskbar** (Windows) | Pin, unpin and reorder apps. |
 | **Desktop** (Windows) | Move, arrange, resize, hide and re-icon desktop icons. Show or hide This PC, Recycle Bin and the other system icons. Save and load layouts. |
 | **Undo** (Windows) | Put back one app's icon, every icon at once, or the whole pinned-apps list from automatic backups. |
@@ -60,6 +60,7 @@ cd iconwright
 node bin/iconwright.mjs help
 node bin/iconwright.mjs doctor
 node bin/iconwright.mjs apply "Spotify" --source simple-icons:spotify --color white
+node bin/iconwright.mjs apply "Spotify" "Discord" "Steam" --source app --color white
 ```
 
 ## Before you start
