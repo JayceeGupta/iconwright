@@ -197,7 +197,7 @@ winTool('desktop_arrange', {
   title: 'Arrange desktop',
   description: 'Line up the desktop icons on one monitor from a corner. Icons on other monitors stay put. Save a backup with desktop_layout_save first.',
   input: {
-    itemsFirst: z.array(z.string()).optional().describe('Items to place first, in this order; the rest follow, sorted by "by"'),
+    itemsFirst: z.array(z.string()).optional().describe('Items (already on this monitor) to place first, in this order; the rest follow, sorted by "by"'),
     by: z.enum(['name', 'type', 'none']).optional().describe('Sort the rest by name (default), file type, or keep their current order'),
     corner: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).optional().describe('Default top-left'),
     flow: z.enum(['columns', 'rows']).optional().describe('Fill columns (default) or rows first'),

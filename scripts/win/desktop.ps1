@@ -64,7 +64,11 @@ function Invoke-DesktopArrange([string[]]$first, [string]$by, [string]$corner, [
   $onMonitor = { param($it) $mons.Count -eq 1 -or ($it.x -ge $wa.L -and $it.x -lt $wa.R -and $it.y -ge $wa.T -and $it.y -lt $wa.B) }
   $items = @(Get-DesktopItems)
   $ordered = New-Object System.Collections.ArrayList
-  foreach ($k in @($first | Where-Object { $_ })) { $it = Find-DesktopItem $k $items; if ($ordered -notcontains $it) { [void]$ordered.Add($it) } }
+  foreach ($k in @($first | Where-Object { $_ })) {
+    $it = Find-DesktopItem $k $items
+    if (-not (& $onMonitor $it)) { Fail "'$($it.name)' is on another monitor; arrange only moves icons on monitor $monitor. Use desktop move to bring it over first." }
+    if ($ordered -notcontains $it) { [void]$ordered.Add($it) }
+  }
   $rest = @($items | Where-Object { $ordered -notcontains $_ -and (& $onMonitor $_) })
   switch ($by) {
     'type'  { $rest = @($rest | Sort-Object { [IO.Path]::GetExtension($_.path) }, name) }

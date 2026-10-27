@@ -123,6 +123,7 @@ export class WinWorker {
     const proc = spawn(PS_EXE, [...PS_ARGS, '-File', SCRIPT, '__worker'], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: PS_ENV });
     this.#proc = proc; this.#stderr = [];
     proc.stdin.setDefaultEncoding('utf8');
+    proc.stdin.on('error', () => {});   // a dead worker's pipe; reported through the request instead
     proc.stderr.setEncoding('utf8').on('data', (d) => { this.#stderr.push(d); if (this.#stderr.length > 20) this.#stderr.shift(); });
     this.#ready = new Promise((resolve, reject) => {
       const lines = createInterface({ input: proc.stdout.setEncoding('utf8') });
@@ -154,11 +155,16 @@ export class WinWorker {
     const reply = await new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id);
-        proc.kill();
-        resolve({ ok: false, error: `iconwright '${command}' timed out after ${TIMEOUT_MS / 1000} s; it may be half done. Check with doctor and taskbar_status.` });
+        // Retire this worker now so no queued call reuses it, and release the queue only once
+        // it has really exited (it may hold the change lock until then).
+        if (this.#proc === proc) { this.#proc = null; this.#ready = null; }
+        const done = () => resolve({ ok: false, error: `iconwright '${command}' timed out after ${TIMEOUT_MS / 1000} s; it may be half done. Check with doctor and taskbar_status.` });
+        if (proc.exitCode !== null) done(); else { proc.once('exit', done); proc.kill(); }
       }, TIMEOUT_MS);
       this.#pending.set(id, (msg) => { clearTimeout(timer); resolve(msg); });
-      proc.stdin.write(JSON.stringify({ id, command, params: winParams(options) }) + '\n');
+      proc.stdin.write(JSON.stringify({ id, command, params: winParams(options) }) + '\n', (err) => {
+        if (err && this.#pending.delete(id)) { clearTimeout(timer); resolve({ ok: false, error: `iconwright Windows worker is not accepting requests: ${err.message}` }); }
+      });
     });
     if (RESTARTS_EXPLORER.has(command)) this.close();
     if (!reply.ok) throw new Error(reply.error);

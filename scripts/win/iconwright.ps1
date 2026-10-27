@@ -157,15 +157,18 @@ function Resolve-App([string]$name) {
 # sides have an ID and they differ, it's another app even if the file name or target matches
 # (two apps can share a display name). Without IDs, match by target exe, then by file name.
 function Get-PinnedFor($a, [string]$target, [string]$appId) {
-  $byName = @()
+  # Strongest kind of match wins; weaker kinds are only used when there is no stronger one.
+  $byId = @(); $byTarget = @(); $byName = @()
   foreach ($p in [Iconwright.Taskband]::List()) {
     if (-not $p -or -not $p.EndsWith('.lnk') -or -not (Test-Path -LiteralPath $p)) { continue }
     $id = Get-LnkAppId $p
-    if ($appId -and $id) { if ($id -eq $appId) { $p }; continue }
-    if ($target -and ([Iconwright.Lnk]::GetTarget($p) -eq $target)) { $p; continue }
+    if ($appId -and $id) { if ($id -eq $appId) { $byId += $p }; continue }
+    if ($target -and ([Iconwright.Lnk]::GetTarget($p) -eq $target)) { $byTarget += $p; continue }
     if ([IO.Path]::GetFileNameWithoutExtension($p) -eq $a.Name) { $byName += $p }
   }
-  if ($byName.Count -eq 1) { $byName[0] }   # a name-only match must be unambiguous
+  if ($byId.Count) { return $byId }
+  if ($byTarget.Count) { return $byTarget }
+  if ($byName.Count -eq 1) { return $byName }   # a name-only match must be unambiguous
 }
 
 function Test-Writable([string]$path) {
@@ -251,11 +254,12 @@ function Get-TaskbandBackup([string]$name) {
   $null
 }
 
-# Waits up to $seconds for the taskbar window; returns $true when it is there.
-function Wait-Taskbar([int]$seconds) {
+# Waits up to $seconds for a taskbar owned by a new process (not $oldPid); $true when it is there.
+function Wait-Taskbar([int]$seconds, [int]$oldPid = 0) {
   $until = (Get-Date).AddSeconds($seconds)
   while ((Get-Date) -lt $until) {
-    if ([Iconwright.TaskbarColor]::TrayPresent()) { return $true }
+    $p = [Iconwright.TaskbarColor]::TrayProcessId()
+    if ($p -and $p -ne $oldPid) { return $true }
     Start-Sleep -Milliseconds 250
   }
   $false
@@ -307,40 +311,56 @@ function Invoke-PinChange([scriptblock]$prepare, [scriptblock]$action, [switch]$
   if (-not $NoBackup) { Backup-Taskband }   # refresh changes nothing, so it keeps the existing 'last'
   $snapshot = Get-TaskbandValues
   $filesBefore = Get-PinnedFiles
-  $failure = $null; $trayBack = $true
+  $failure = $null; $trayBack = $true; $rollbackFailed = $false
   # Returns '' on success, or text to append to the failure message.
   $rollback = {
     try { Set-TaskbandValues $snapshot; Restore-PinnedFiles $filesBefore; '' }
-    catch { " (rollback also failed: $($_.Exception.Message); restore with: iconwright restore-pins --from last)" }
+    catch { "|ROLLBACK| (rollback also failed: $($_.Exception.Message); the state before this change is saved: iconwright restore-pins --from last)" }
   }
   try { if ($prepare) { & $prepare } } catch { $failure = $_.Exception.Message; $failure += (& $rollback) }
   if (-not $failure -and -not $restart) {
     try { & $action } catch { $failure = $_.Exception.Message; $failure += (& $rollback) }
   }
   if (-not $failure -and $restart) {
-    Set-Content -LiteralPath $stamp -Value (Get-Date -Format o)
-    try { [Iconwright.Desktop]::SaveState() } catch { }   # a forced kill skips explorer's own save
     # Stop only the explorer that owns the taskbar; separate-process folder windows survive.
+    # No taskbar means no shell to restart safely: refuse rather than guess.
     $shellPid = [Iconwright.TaskbarColor]::TrayProcessId()
-    if ($shellPid) { Stop-Process -Id $shellPid -Force -ErrorAction SilentlyContinue; Wait-Process -Id $shellPid -Timeout 5 -ErrorAction SilentlyContinue }
-    else { Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue; Wait-Process -Name explorer -Timeout 5 -ErrorAction SilentlyContinue }
-    try { & $action }
-    catch {
-      # Put the pin list back exactly as it was before bringing explorer back.
-      $failure = $_.Exception.Message
-      $failure += (& $rollback)
-    }
-    finally {
-      # Windows normally restarts the shell by itself. Start it only if that didn't happen:
-      # a second explorer.exe while a shell runs would just open a File Explorer window.
-      if (-not (Wait-Taskbar 8)) {
-        Start-Process (Join-Path (KF Windows) 'explorer.exe')
-        $trayBack = Wait-Taskbar 20
+    if (-not $shellPid) { $failure = 'the taskbar is not running, so Explorer cannot be restarted safely. Start Explorer and try again.'; $failure += (& $rollback) }
+    else {
+      Set-Content -LiteralPath $stamp -Value (Get-Date -Format o)
+      try { [Iconwright.Desktop]::SaveState() } catch { }   # a forced kill skips explorer's own save
+      # Hold the process object: looking the id up again can still find the exited process.
+      $shellProc = Get-Process -Id $shellPid -ErrorAction SilentlyContinue
+      $stopped = $true
+      if ($shellProc) {
+        try { $shellProc.Kill() } catch { }
+        $stopped = $shellProc.WaitForExit(5000)
+      }
+      if (-not $stopped) {
+        $failure = 'Explorer did not stop; nothing was changed.'; $failure += (& $rollback)
+      } else {
+        try { & $action }
+        catch {
+          # Put the pin list back exactly as it was before bringing explorer back.
+          $failure = $_.Exception.Message
+          $failure += (& $rollback)
+        }
+        finally {
+          # Windows normally restarts the shell by itself. Start it only if that didn't happen:
+          # a second explorer.exe while a shell runs would just open a File Explorer window.
+          if (-not (Wait-Taskbar 8 $shellPid)) {
+            Start-Process (Join-Path (KF Windows) 'explorer.exe')
+            $trayBack = Wait-Taskbar 20 $shellPid
+          }
+        }
       }
     }
   }
-  if (-not $NoBackup) { Complete-TaskbandBackup (-not $failure) }
-  if ($failure) { Fail "Taskbar change failed and was rolled back: $failure" }
+  if ($failure -and $failure.Contains('|ROLLBACK|')) { $rollbackFailed = $true; $failure = $failure.Replace('|ROLLBACK|', '') }
+  # A failed rollback leaves the PC between states; the pending backup is the exact state before
+  # this change, so it becomes 'last' (which the error message points to).
+  if (-not $NoBackup) { Complete-TaskbandBackup ((-not $failure) -or $rollbackFailed) }
+  if ($failure) { Fail $(if ($rollbackFailed) { "Taskbar change failed: $failure" } else { "Taskbar change failed and was rolled back: $failure" }) }
   if (-not $trayBack) {
     Fail ("The pin list was changed, but the taskbar did not come back within 30 s. Press Ctrl+Shift+Esc, " +
           "choose 'Run new task', enter explorer.exe. To undo the change: iconwright restore-pins")
@@ -410,7 +430,11 @@ function New-PinShortcut($info) {
   } elseif ($info.target) {
     [Iconwright.Lnk]::Save($dst, $info.target, $null, (Split-Path $info.target), $null, 0, $info.explicitId, $info.name)
   } else { throw "Can't build a shortcut for '$($info.name)'" }
-  if ($Icon) { [Iconwright.Lnk]::SetIcon($dst, (Resolve-Path -LiteralPath $Icon).Path, $IconIndex) }
+  if ($Icon) {
+    # Remember the new pin's own icon first, so restore goes back to it rather than to -Icon.
+    $state = Get-State; Remember-Original $state $dst; Save-State $state
+    [Iconwright.Lnk]::SetIcon($dst, (Resolve-Path -LiteralPath $Icon).Path, $IconIndex)
+  }
   # The pin entry must carry the AppID explorer uses for the app's windows.
   [pscustomobject]@{ path = $dst; appId = $(if ($info.explicitId) { $info.explicitId } else { $info.appId }) }
 }
@@ -606,7 +630,9 @@ switch -Wildcard ($Command.ToLower()) {
         $info = Resolve-App $a; $src = Get-AppIconSource $info
         if ($src.file -and $src.file -match '\.ico$') { $img = $src.file }
         else {
-          $img = Join-Path $dir (($info.name -replace '[^\w.-]+', '-') + '.png')
+          # Two names can clean up to the same text, so the file name also carries an AppID hash.
+          $h = [BitConverter]::ToString((New-Object Security.Cryptography.SHA1Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$info.appId))).Replace('-', '').Substring(0, 8)
+          $img = Join-Path $dir (($info.name -replace '[^\w.-]+', '-') + "-$h.png")
           if ($src.file) { [void][Iconwright.IconImage]::FromFile($src.file, $src.index, 256, $img) }
           else { [void][Iconwright.IconImage]::FromShellItem($src.shell, 256, $img) }
         }
