@@ -645,4 +645,79 @@ namespace Iconwright {
       return w + "x" + h;
     }
   }
+  // ---------- An app's own icon as a PNG (source for recoloring) ----------
+  public static class IconImage {
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern uint PrivateExtractIconsW(string file, int index, int cx, int cy, IntPtr[] icons, uint[] ids, uint n, uint flags);
+    [DllImport("user32.dll")] static extern bool DestroyIcon(IntPtr h);
+    [DllImport("user32.dll")] static extern bool GetIconInfo(IntPtr h, out ICONINFO ii);
+    [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr h);
+    [DllImport("gdi32.dll")] static extern int GetObjectW(IntPtr h, int size, ref BITMAP bm);
+    [DllImport("gdi32.dll")] static extern int GetDIBits(IntPtr dc, IntPtr bmp, uint start, uint lines, byte[] bits, ref BITMAPINFOHEADER bi, uint usage);
+    [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr h);
+    [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr h, IntPtr dc);
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+    static extern void SHCreateItemFromParsingName(string path, IntPtr bc, ref Guid riid, out IShellItemImageFactory item);
+
+    [StructLayout(LayoutKind.Sequential)] struct ICONINFO { public bool fIcon; public int x, y; public IntPtr hbmMask, hbmColor; }
+    [StructLayout(LayoutKind.Sequential)] struct BITMAP { public int bmType, bmWidth, bmHeight, bmWidthBytes; public ushort bmPlanes, bmBitsPixel; public IntPtr bmBits; }
+    [StructLayout(LayoutKind.Sequential)] struct BITMAPINFOHEADER {
+      public int biSize, biWidth, biHeight; public ushort biPlanes, biBitCount; public int biCompression, biSizeImage, biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct SIZE { public int cx, cy; }
+    [ComImport, Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IShellItemImageFactory { void GetImage(SIZE size, int flags, out IntPtr phbm); }
+
+    // Icon `index` (negative = resource id) of an exe/dll/ico file, as a size x size PNG.
+    public static string FromFile(string file, int index, int size, string png) {
+      var icons = new IntPtr[1]; var ids = new uint[1];
+      uint n = PrivateExtractIconsW(file, index, size, size, icons, ids, 1, 0);
+      if (n == 0 || n == 0xFFFFFFFF || icons[0] == IntPtr.Zero) throw new InvalidOperationException("No icon " + index + " in " + file);
+      try { return SaveIcon(icons[0], png); } finally { DestroyIcon(icons[0]); }
+    }
+
+    // What Explorer shows for a shell item (e.g. "shell:AppsFolder\<AppID>" for Store apps).
+    public static string FromShellItem(string parsingName, int size, string png) {
+      var iid = typeof(IShellItemImageFactory).GUID; IShellItemImageFactory f;
+      SHCreateItemFromParsingName(parsingName, IntPtr.Zero, ref iid, out f);
+      IntPtr hbm;
+      f.GetImage(new SIZE { cx = size, cy = size }, 0x1 /*BIGGERSIZEOK*/ | 0x4 /*ICONONLY*/, out hbm);
+      try { return SaveBitmap(hbm, IntPtr.Zero, png, true); } finally { DeleteObject(hbm); Marshal.ReleaseComObject(f); }
+    }
+
+    static string SaveIcon(IntPtr hicon, string png) {
+      ICONINFO ii; if (!GetIconInfo(hicon, out ii)) throw new InvalidOperationException("GetIconInfo failed");
+      try {
+        if (ii.hbmColor == IntPtr.Zero) throw new InvalidOperationException("monochrome icons are not supported");
+        return SaveBitmap(ii.hbmColor, ii.hbmMask, png, false);
+      } finally { DeleteObject(ii.hbmColor); DeleteObject(ii.hbmMask); }
+    }
+
+    // Reads a bitmap as 32-bit BGRA. Icons without an alpha channel take transparency from
+    // their AND mask. Shell images come premultiplied; icon bitmaps are straight alpha.
+    static string SaveBitmap(IntPtr hbm, IntPtr mask, string png, bool premultiplied) {
+      var bm = new BITMAP(); GetObjectW(hbm, Marshal.SizeOf(typeof(BITMAP)), ref bm);
+      int w = bm.bmWidth, h = Math.Abs(bm.bmHeight);
+      byte[] px = Bits(hbm, w, h);
+      bool hasAlpha = false; for (int i = 3; i < px.Length; i += 4) if (px[i] != 0) { hasAlpha = true; break; }
+      if (!hasAlpha) {
+        byte[] m = mask != IntPtr.Zero ? Bits(mask, w, h) : null;
+        for (int i = 0; i < px.Length; i += 4) px[i + 3] = (m == null || m[i] == 0) ? (byte)255 : (byte)0;
+        premultiplied = false;
+      }
+      using (var bmp = new System.Drawing.Bitmap(w, h, premultiplied ? System.Drawing.Imaging.PixelFormat.Format32bppPArgb : System.Drawing.Imaging.PixelFormat.Format32bppArgb)) {
+        var data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, w, h), System.Drawing.Imaging.ImageLockMode.WriteOnly, bmp.PixelFormat);
+        try { for (int y = 0; y < h; y++) Marshal.Copy(px, y * w * 4, data.Scan0 + y * data.Stride, w * 4); } finally { bmp.UnlockBits(data); }
+        bmp.Save(png, System.Drawing.Imaging.ImageFormat.Png);
+      }
+      return w + "x" + h;
+    }
+    static byte[] Bits(IntPtr hbm, int w, int h) {
+      var bi = new BITMAPINFOHEADER { biSize = Marshal.SizeOf(typeof(BITMAPINFOHEADER)), biWidth = w, biHeight = -h, biPlanes = 1, biBitCount = 32 };
+      var px = new byte[w * h * 4]; IntPtr dc = GetDC(IntPtr.Zero);
+      try { if (GetDIBits(dc, hbm, 0, (uint)h, px, ref bi, 0) == 0) throw new InvalidOperationException("GetDIBits failed"); }
+      finally { ReleaseDC(IntPtr.Zero, dc); }
+      return px;
+    }
+  }
 }

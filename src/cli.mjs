@@ -2,44 +2,32 @@ import { makeIcon } from './render.mjs';
 import { searchIcons } from './source.mjs';
 import { makeSheet } from './sheet.mjs';
 import { toJson } from './output.mjs';
+import { parseArgs } from './args.mjs';
 
 export const commands = new Map();
 export function register(name, handler, usage = '') { commands.set(name, { handler, usage }); }
 
-function parseFlags(args) {
-  const values = {}, positional = [];
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (!arg.startsWith('--')) { positional.push(arg); continue; }
-    const key = arg.slice(2);
-    if (key === 'help') { values.help = true; continue; }
-    if (i + 1 >= args.length || args[i + 1].startsWith('--')) throw new Error(`missing value for ${arg}`);
-    values[key] = args[++i];
-  }
-  return { values, positional };
-}
-
 register('search', async (args) => {
-  const { values, positional } = parseFlags(args);
-  if (values.help) return 'Usage: iconwright search <query> [--limit N]';
-  const ids = await searchIcons(positional.join(' '), values.limit);
-  return ids.join('\n');
-}, 'search <query> [--limit N]');
+  const { values, positional, help } = parseArgs(args, { positional: 'any', flags: { limit: 'number' } });
+  if (help || !positional.length) return 'Usage: iconwright search <words> [--limit n]';
+  return (await searchIcons(positional.join(' '), values.limit)).join('\n');
+}, 'search <words> [--limit n]');
 
 register('make', async (args) => {
-  const { values } = parseFlags(args);
-  if (values.help) return 'Usage: iconwright make --source <ref> [--name n] [--color c] [--bg c] [--shape s] [--radius r] [--padding p] [--png-size px] [--out dir]';
-  if (!values.source) throw new Error('make requires --source <ref>');
-  const result = await makeIcon({ source: values.source, name: values.name, color: values.color, bg: values.bg, shape: values.shape, radius: values.radius === undefined ? undefined : Number(values.radius), padding: values.padding === undefined ? undefined : Number(values.padding), outDir: values.out, pngSize: values['png-size'] });
-  return toJson({ ico: result.ico, preview: result.preview, png: result.pngs[0] });
+  const { values: v, help } = parseArgs(args, { flags: { source: 'string', name: 'string', color: 'string', bg: 'string', shape: 'string',
+    radius: 'number', padding: 'number', out: 'string', 'png-size': 'number' } });
+  const usage = 'Usage: iconwright make --source <ref> [--color c] [--bg c] [--shape s] [--radius r] [--padding p] [--name n] [--out dir] [--png-size px]';
+  if (help) return usage;
+  if (!v.source) throw new Error(usage);
+  const r = await makeIcon({ source: v.source, name: v.name, color: v.color, bg: v.bg, shape: v.shape, radius: v.radius, padding: v.padding, outDir: v.out, pngSize: v['png-size'] });
+  return toJson({ ico: r.ico, preview: r.preview, png: r.pngs[0] });
 }, 'make --source <ref> [options]');
 
 register('sheet', async (args) => {
-  const { values, positional } = parseFlags(args);
-  if (values.help) return 'Usage: iconwright sheet <files...> --out <path>';
-  if (!values.out) throw new Error('sheet requires --out <path>');
-  return makeSheet(positional, values.out);
-}, 'sheet <files...> --out path');
+  const { values, positional, help } = parseArgs(args, { positional: 'any', flags: { out: 'string' } });
+  if (help || !values.out || !positional.length) return 'Usage: iconwright sheet <images...> --out file.png';
+  return toJson({ path: await makeSheet(positional, values.out) });
+}, 'sheet <images...> --out file.png');
 
 export function help() {
   return HELP;
@@ -57,8 +45,8 @@ Make icons (any OS)
 Apps and taskbar (Windows)
   apps [text]                         find an app by name
   info <app...>                       an app's shortcuts, ID and pin state
-  apply <app> --source <ref> [style]  make an icon and put it on the app (or --icon file.ico)
-      [--pin] [--refresh]
+  apply <app...> --source <ref> [style]  make an icon and put it on the apps (or --icon file.ico)
+      [--pin] [--refresh]             --source app restyles each app's own icon
   set-icon <app> --icon file.ico      put an existing .ico on the app
   pin <app...> [--icon file.ico]      pin apps (restarts Explorer once)
   unpin <app...>                      unpin apps (restarts Explorer once)
@@ -87,7 +75,7 @@ Undo and checks (Windows)
   capture [taskbar|desktop|screen]    screenshot to check a change [--out file.png]
 
 <ref> is an Iconify name (mdi:spotify, simple-icons:discord), a .svg/.png/.jpg/.webp/.ico
-file, or raw <svg> text. Windows commands print one line of JSON.`;
+file, raw <svg> text, or (for apply) app. Commands print one line of JSON.`;
 
 export async function run(argv = process.argv) {
   try {

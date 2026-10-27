@@ -1,8 +1,10 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { largestIcoImage } from './ico.mjs';
 
 const ICONIFY = process.env.ICONWRIGHT_ICONIFY_API || 'https://api.iconify.design';
+const MAX_LOCAL_SOURCE = 25 * 1024 * 1024;
+const MAX_ICONIFY_RESPONSE = 2 * 1024 * 1024;
 
 // Iconify requests time out instead of hanging an agent call forever.
 async function get(url) {
@@ -13,15 +15,56 @@ async function get(url) {
   }
 }
 
+async function readLocalSource(file) {
+  const details = await stat(file);
+  if (details.size > MAX_LOCAL_SOURCE) throw new Error(`source file too large (max 25 MB): ${file}`);
+  return readFile(file);
+}
+
+async function responseText(response) {
+  const declaredSize = Number(response.headers?.get?.('content-length'));
+  if (Number.isFinite(declaredSize) && declaredSize > MAX_ICONIFY_RESPONSE) {
+    throw new Error('Iconify response too large (max 2 MB)');
+  }
+  if (response.body?.getReader) {
+    const reader = response.body.getReader();
+    const chunks = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_ICONIFY_RESPONSE) {
+          await reader.cancel();
+          throw new Error('Iconify response too large (max 2 MB)');
+        }
+        chunks.push(Buffer.from(value));
+      }
+    } finally {
+      reader.releaseLock?.();
+    }
+    return Buffer.concat(chunks, total).toString('utf8');
+  }
+  if (typeof response.text === 'function') {
+    const text = await response.text();
+    if (Buffer.byteLength(text, 'utf8') > MAX_ICONIFY_RESPONSE) throw new Error('Iconify response too large (max 2 MB)');
+    return text;
+  }
+  const value = await response.json();
+  if (Buffer.byteLength(JSON.stringify(value), 'utf8') > MAX_ICONIFY_RESPONSE) throw new Error('Iconify response too large (max 2 MB)');
+  return JSON.stringify(value);
+}
+
 export async function loadSource(ref) {
   if (typeof ref !== 'string' || !ref.trim()) throw new Error('source is required');
   const value = ref.trim();
   if (value.startsWith('<svg')) return { svg: value, kind: 'svg' };
 
   const ext = path.extname(value).toLowerCase();
-  if (ext === '.ico') return { raster: await largestIcoImage(await readFile(value)), kind: 'raster' };
+  if (ext === '.ico') return { raster: await largestIcoImage(await readLocalSource(value)), kind: 'raster' };
   if (['.svg', '.png', '.jpg', '.jpeg', '.webp'].includes(ext)) {
-    const data = await readFile(value);
+    const data = await readLocalSource(value);
     if (ext === '.svg') return { svg: data.toString('utf8'), kind: 'svg' };
     return { raster: data, kind: 'raster' };
   }
@@ -31,7 +74,7 @@ export async function loadSource(ref) {
   const [, prefix, name] = match;
   const response = await get(`${ICONIFY}/${encodeURIComponent(prefix)}/${encodeURIComponent(name)}.svg`);
   if (!response.ok) throw new Error(`Iconify source failed (${response.status}): ${value}`);
-  return { svg: await response.text(), kind: 'svg' };
+  return { svg: await responseText(response), kind: 'svg' };
 }
 
 export async function searchIcons(query, limit = 20) {
@@ -42,6 +85,6 @@ export async function searchIcons(query, limit = 20) {
   url.searchParams.set('limit', String(safeLimit));
   const response = await get(url);
   if (!response.ok) throw new Error(`Iconify search failed (${response.status})`);
-  const result = await response.json();
-  return Array.isArray(result.icons) ? result.icons : [];
+  const result = JSON.parse(await responseText(response));
+  return Array.isArray(result.icons) ? result.icons.slice(0, safeLimit) : [];
 }

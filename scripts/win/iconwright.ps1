@@ -30,6 +30,8 @@ param(
   [int]$Monitor = 0              # desktop-arrange: which monitor (0 = primary)
 )
 $ErrorActionPreference = 'Stop'
+# Some MCP clients start us without PATHEXT; then PowerShell silently runs no .exe at all.
+if (-not $env:PATHEXT) { $env:PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC' }
 Set-StrictMode -Version 2
 
 # Known folders come from the OS, not env vars: MCP clients often start servers with a trimmed environment.
@@ -43,7 +45,8 @@ $StartDirs = @(
 )
 
 function Out-Json($obj) { ConvertTo-Json -InputObject $obj -Compress -Depth 6 }
-function Fail([string]$msg) { [Console]::Error.WriteLine($msg); exit 1 }
+# Errors are thrown, not exits: the one-shot entry point prints them, the MCP worker returns them.
+function Fail([string]$msg) { throw $msg }
 
 # ---------- interop (compiled once per source hash, then cached) ----------
 function Import-Interop {
@@ -52,8 +55,21 @@ function Import-Interop {
   $hash = (Get-FileHash $src -Algorithm SHA256).Hash.Substring(0, 12)
   $dll = Join-Path $Home_ "bin\Iconwright.Win.$hash.dll"
   if (-not (Test-Path -LiteralPath $dll)) {
-    New-Item -ItemType Directory -Force (Split-Path $dll) | Out-Null
-    Add-Type -Path $src -OutputAssembly $dll -OutputType Library -ReferencedAssemblies System.Drawing
+    # Two first calls at once must not both write the DLL: compile under a lock, to a temp
+    # name, then rename into place. Older versions' DLLs are removed when not in use.
+    $m = New-Object Threading.Mutex($false, 'Local\iconwright-compile')
+    try { [void]$m.WaitOne([TimeSpan]::FromSeconds(60)) } catch [Threading.AbandonedMutexException] { }
+    try {
+      if (-not (Test-Path -LiteralPath $dll)) {
+        $bin = Split-Path $dll
+        New-Item -ItemType Directory -Force $bin | Out-Null
+        $tmp = Join-Path $bin ("build-" + [guid]::NewGuid().ToString('N') + '.dll')
+        Add-Type -Path $src -OutputAssembly $tmp -OutputType Library -ReferencedAssemblies System.Drawing
+        Move-Item -LiteralPath $tmp -Destination $dll
+        Get-ChildItem -LiteralPath $bin -Filter 'Iconwright.Win.*.dll' | Where-Object { $_.FullName -ne $dll } |
+          Remove-Item -Force -ErrorAction SilentlyContinue
+      }
+    } finally { try { $m.ReleaseMutex() } catch { } }
   }
   Add-Type -Path $dll
 }
@@ -91,8 +107,11 @@ function Get-StartShortcuts {
   }
 }
 
+$script:StartAppsCache = $null
 function Find-Apps([string]$q) {
-  $apps = Get-StartApps
+  # Get-StartApps costs ~0.5-0.9 s, so one request looks it up once, however many apps it names.
+  if ($null -eq $script:StartAppsCache) { $script:StartAppsCache = @(Get-StartApps) }
+  $apps = $script:StartAppsCache
   if ($q) {
     if ($q -match '^[A-Za-z]:/') { $q = $q.Replace('/', '\') }   # paths may come back with forward slashes
     $exact = @($apps | Where-Object { $_.Name -eq $q -or $_.AppID -eq $q })
@@ -106,7 +125,7 @@ function Find-Apps([string]$q) {
 function Resolve-App([string]$name) {
   if (-not $name) { Fail 'Missing -App' }
   $m = @(Find-Apps $name)
-  if ($m.Count -eq 0) { Fail "No Start menu app matches '$name'. Try: iconwright apps <text>" }
+  if ($m.Count -eq 0) { Fail "No Start menu app matches '$name'. Find the exact name with list_apps (CLI: iconwright apps <text>)." }
   if ($m.Count -gt 1) {
     Fail ("'$name' is ambiguous: " + (($m | Select-Object -First 8 | ForEach-Object { "$($_.Name) [$($_.AppID)]" }) -join '; '))
   }
@@ -188,8 +207,13 @@ function Test-StockColor([int]$color) {
 # reg.exe prints status to stderr; PowerShell 5.1 would turn that into an error.
 function Invoke-Reg([string[]]$argv) {
   $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-  try { $null = & reg.exe @argv 2>&1 } finally { $ErrorActionPreference = $eap }
-  $LASTEXITCODE
+  # Full path: MCP clients may start us without PATH. A missing reg.exe must fail loudly.
+  $reg = Join-Path (KF System) 'reg.exe'
+  $global:LASTEXITCODE = -1
+  $o = $null
+  try { $o = & $reg @argv 2>&1 } finally { $ErrorActionPreference = $eap }
+  if ($global:LASTEXITCODE -eq -1) { throw "Could not run ${reg}: $(($o | Out-String).Trim())" }
+  $global:LASTEXITCODE
 }
 $TaskbandKey = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband'
 $BackupDir = Join-Path $Home_ 'backups'
@@ -310,7 +334,7 @@ function Invoke-PinChange([scriptblock]$prepare, [scriptblock]$action, [switch]$
       # Windows normally restarts the shell by itself. Start it only if that didn't happen:
       # a second explorer.exe while a shell runs would just open a File Explorer window.
       if (-not (Wait-Taskbar 8)) {
-        Start-Process explorer.exe
+        Start-Process (Join-Path (KF Windows) 'explorer.exe')
         $trayBack = Wait-Taskbar 20
       }
     }
@@ -332,7 +356,7 @@ function Invoke-PinChange([scriptblock]$prepare, [scriptblock]$action, [switch]$
     try {
       # Store apps (e.g. TranslucentTB) can't be started from their WindowsApps path.
       $sa = Get-StartApps | Where-Object { $_.Name -eq $s.name } | Select-Object -First 1
-      if ($sa) { Start-Process explorer.exe "shell:AppsFolder\$($sa.AppID)" } else { Start-Process -FilePath $s.path }
+      if ($sa) { Start-Process (Join-Path (KF Windows) 'explorer.exe') "shell:AppsFolder\$($sa.AppID)" } else { Start-Process -FilePath $s.path }
       $relaunched += $s.name
     } catch { }
   }
@@ -517,6 +541,8 @@ function Cmd-Doctor {
   $checks.interop = [pscustomobject]@{ ok = [bool]('Iconwright.Taskband' -as [type]); detail = 'C# helper compiled and loaded' }
   $startOk = $true; try { [void](Get-StartApps | Select-Object -First 1) } catch { $startOk = $false }
   $checks.startApps = [pscustomobject]@{ ok = $startOk; detail = 'Get-StartApps (app lookup)' }
+  $native = $false; try { $native = (Invoke-Reg @('query', 'HKCU\Console')) -eq 0 } catch { }
+  $checks.nativeCommands = [pscustomobject]@{ ok = $native; detail = 'can run reg.exe (needed for pin-list backups)' }
   $n = [Iconwright.Taskband]::Count()
   $checks.pinList = [pscustomobject]@{ ok = [Iconwright.Taskband]::Valid(); detail = "$n pinned item(s); format recognized = $([Iconwright.Taskband]::Valid())" }
   $checks.pinPrefix = [pscustomobject]@{ ok = $n -gt 0; detail = $(if ($n) { 'at least one existing pin to copy from' } else { 'no pins yet: pin any app once by hand, then iconwright can pin' }) }
@@ -537,25 +563,80 @@ function Cmd-Doctor {
   }
 }
 
-# Changes run one at a time: two explorer restarts or pin-list writes must never overlap.
-$ReadOnly = @('apps', 'info', 'status', 'doctor', 'capture', 'desktop-list', 'help')
-$script:Lock = $null
-if ($ReadOnly -notcontains $Command.ToLower()) {
-  $script:Lock = New-Object Threading.Mutex($false, 'Local\iconwright-change')
+# One request at a time across all iconwright processes (CLI, MCP worker): pin-list writes and
+# explorer restarts must never overlap, and reads must not see a half-restarted shell.
+# Only 'apps' (Start menu lookup) and 'help' skip the lock.
+$script:Lock = New-Object Threading.Mutex($false, 'Local\iconwright-change')
+$script:Locked = $false
+function Enter-Lock([string]$cmd) {
+  if ($cmd -in 'apps', 'help') { return }
   $got = $false
-  try { $got = $script:Lock.WaitOne([TimeSpan]::FromSeconds(180)) } catch [Threading.AbandonedMutexException] { $got = $true }
+  try { $got = $script:Lock.WaitOne([TimeSpan]::FromSeconds(120)) } catch [Threading.AbandonedMutexException] { $got = $true }
   if (-not $got) { Fail 'Another iconwright change is still running; try again when it finishes.' }
+  $script:Locked = $true
+}
+function Exit-Lock {
+  if ($script:Locked) { $script:Locked = $false; try { $script:Lock.ReleaseMutex() } catch { } }
 }
 
-Import-Interop
-. (Join-Path $PSScriptRoot 'desktop.ps1')
+# Where an app's own icon comes from: the icon it had before iconwright changed it (or its
+# current one), else the exe, else what the shell shows (Store apps). {file,index} or {shell}.
+function Get-AppIconSource($info) {
+  $state = Get-State
+  $links = @(@($info.pinned) + @($info.startMenu) | Where-Object { $_ })   # pinned first: what the taskbar shows
+  $loc = $null
+  foreach ($l in $links) { $o = $state.originals.PSObject.Properties[$l]; if ($o) { $loc = [string]$o.Value; break } }
+  if ($null -eq $loc) { foreach ($l in $links) { if (Test-Path -LiteralPath $l) { $loc = [Iconwright.Lnk]::GetIcon($l); break } } }
+  if ($loc -match '^(.*),(-?\d+)$' -and $Matches[1]) {
+    $f = [Environment]::ExpandEnvironmentVariables($Matches[1])
+    if (Test-Path -LiteralPath $f) { return @{ file = $f; index = [int]$Matches[2] } }
+  }
+  if (-not $info.store -and $info.target -and (Test-Path -LiteralPath $info.target)) { return @{ file = $info.target; index = 0 } }
+  @{ shell = "shell:AppsFolder\$($info.appId)" }
+}
+
+function Invoke-Request {
 switch -Wildcard ($Command.ToLower()) {
+  'app-icon-image' {
+    # Saves each app's own icon as an image to recolor; .ico files are returned as they are.
+    $dir = if ($File) { $File } else { Join-Path $Home_ 'cache\app-icons' }
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    Out-Json @(foreach ($a in @($App)) {
+      try {
+        $info = Resolve-App $a; $src = Get-AppIconSource $info
+        if ($src.file -and $src.file -match '\.ico$') { $img = $src.file }
+        else {
+          $img = Join-Path $dir (($info.name -replace '[^\w.-]+', '-') + '.png')
+          if ($src.file) { [void][Iconwright.IconImage]::FromFile($src.file, $src.index, 256, $img) }
+          else { [void][Iconwright.IconImage]::FromShellItem($src.shell, 256, $img) }
+        }
+        [pscustomobject]@{ app = $info.name; image = $img }
+      } catch { [pscustomobject]@{ app = $a; error = $_.Exception.Message } }
+    })
+  }
+  'set-icons' {
+    # -Value: JSON list of {app, icon, index?}. One request for many apps; failures are per app.
+    if (-not $Value) { Fail 'set-icons needs -Value <JSON list of {app, icon}>' }
+    # PowerShell 5.1 returns a JSON array as one object; enumerate it.
+    $plan = @(($Value | ConvertFrom-Json) | ForEach-Object { $_ })
+    $results = @(foreach ($p in $plan) {
+      try {
+        $info = Resolve-App ([string]$p.app)
+        $r = Set-AppIcon $info ([string]$p.icon) $(if ($p.PSObject.Properties['index']) { [int]$p.index } else { 0 })
+        [pscustomobject]@{ app = $info.name; updated = @($r.updated).Count; skipped = @($r.skipped)
+          needsRefresh = [bool](@($info.pinned).Count -and -not $info.explicitId) }
+      } catch { [pscustomobject]@{ app = [string]$p.app; error = $_.Exception.Message } }
+    })
+    Out-Json ([pscustomobject]@{ results = $results
+      needsRefresh = [bool]@($results | Where-Object { $_.PSObject.Properties['needsRefresh'] -and $_.needsRefresh }).Count })
+  }
   'doctor' { Out-Json (Cmd-Doctor) }
   'capture' {
     $what = if ($Value) { $Value.ToLower() } else { 'taskbar' }
     if ($what -notin 'taskbar', 'desktop', 'screen') { Fail "capture: -Value must be taskbar, desktop or screen" }
     $out = if ($File) { $File } else { Join-Path (Join-Path $Home_ 'captures') "$what.png" }
     New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
+    if (Get-Process LogonUI -ErrorAction SilentlyContinue) { Fail "Can't take a screenshot while the screen is locked or the sign-in screen is showing." }
     $size = switch ($what) { 'taskbar' { [Iconwright.Capture]::Taskbar($out, $MaxWidth) } 'desktop' { [Iconwright.Capture]::Desktop($out, $MaxWidth) } default { [Iconwright.Capture]::Screen($out, $MaxWidth) } }
     Out-Json ([pscustomobject]@{ path = $out; size = $size })
   }
@@ -603,6 +684,58 @@ switch -Wildcard ($Command.ToLower()) {
     }) })
   }
   default {
-    'Commands: apps | info | set-icon | pin | unpin | reorder | restore | restore-all | restore-pins | refresh | status | doctor | desktop-<list|move|arrange|size|options|system|set-icon|restore|save|load>. Use the Node CLI (iconwright help) for documented usage.'
+    Out-Json 'Commands: apps | info | set-icon | set-icons | app-icon-image | pin | unpin | reorder | restore | restore-all | restore-pins | refresh | status | doctor | capture | desktop-<list|move|arrange|size|options|system|set-icon|restore|save|load>. Use the Node CLI (iconwright help) for documented usage.'
   }
 }
+}
+
+# Long-lived mode for the MCP server: one JSON request per stdin line, one JSON reply per
+# stdout line ({id, ok, result} or {id, ok:false, error}). Saves ~1-2 s of PowerShell startup
+# per call. Parameters are reset to their defaults before every request.
+function Start-Worker {
+  $utf8 = New-Object Text.UTF8Encoding($false)
+  [Console]::InputEncoding = $utf8; [Console]::OutputEncoding = $utf8
+  $defaults = [ordered]@{ App = $null; Query = $null; Icon = $null; IconIndex = 0; NoRestart = $false
+    RestartCooldown = $(if ($env:ICONWRIGHT_RESTART_COOLDOWN) { [int]$env:ICONWRIGHT_RESTART_COOLDOWN } else { 0 })
+    Position = 0; Item = $null; X = 0; Y = 0; Value = $null; File = $null; By = $null; Corner = $null; Flow = $null
+    AutoArrange = $null; SnapToGrid = $null; ShowIcons = $null; MaxWidth = 1600; Monitor = 0 }
+  [Console]::Out.WriteLine('{"ready":true}'); [Console]::Out.Flush()
+  while ($null -ne ($line = [Console]::In.ReadLine())) {
+    if (-not $line.Trim()) { continue }
+    $id = 0
+    try {
+      $req = $line | ConvertFrom-Json
+      $id = [long]$req.id
+      foreach ($k in $defaults.Keys) { Set-Variable -Scope Script -Name $k -Value $defaults[$k] }
+      if ($req.params) {
+        foreach ($p in $req.params.PSObject.Properties) {
+          if (-not $defaults.Contains($p.Name)) { throw "unknown parameter $($p.Name)" }
+          Set-Variable -Scope Script -Name $p.Name -Value $p.Value
+        }
+      }
+      $script:Command = [string]$req.command
+      $script:RestartReport = $null; $script:StartAppsCache = $null
+      Enter-Lock $script:Command
+      $out = @(Invoke-Request)
+      $json = if ($out.Count) { [string]$out[-1] } else { 'null' }
+      $reply = '{"id":' + $id + ',"ok":true,"result":' + $json + '}'
+    } catch {
+      $reply = ConvertTo-Json -Compress -InputObject ([ordered]@{ id = $id; ok = $false; error = $_.Exception.Message })
+    } finally { Exit-Lock }
+    [Console]::Out.WriteLine($reply); [Console]::Out.Flush()
+  }
+}
+
+Import-Interop
+. (Join-Path $PSScriptRoot 'desktop.ps1')
+if ($Command -eq '__worker') { Start-Worker; exit 0 }
+
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+try {
+  Enter-Lock $Command
+  $out = @(Invoke-Request)
+  if ($out.Count) { $out[-1] }   # the JSON line (anything else would be stray output)
+} catch {
+  [Console]::Error.WriteLine($_.Exception.Message)
+  exit 1
+} finally { Exit-Lock }

@@ -1,48 +1,167 @@
 // Bridge to the Windows layer (scripts/win/iconwright.ps1). Every call returns parsed JSON.
-import { execFile } from 'node:child_process';
+//
+// Two ways to run it:
+// - win(): one PowerShell process per call. Simple and isolated; used by the CLI.
+// - WinWorker: one long-lived PowerShell process answering JSON requests over stdin/stdout.
+//   Saves ~1-2 s of PowerShell startup per call; used by the MCP server. Commands that restart
+//   Explorer retire the worker afterwards, so no shell objects outlive the restart.
+import { execFile, spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'win', 'iconwright.ps1');
+const PS_ARGS = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass'];
+// Full path: MCP clients may start the server with a trimmed environment (no PATH).
+const PS_EXE = (() => {
+  const exe = path.join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  return existsSync(exe) ? exe : 'powershell.exe';
+})();
+// Without PATHEXT, Windows PowerShell silently refuses to run any .exe (reg.exe, explorer.exe);
+// some MCP clients start servers without it, so fill in Windows' defaults.
+const PS_ENV = (() => {
+  const root = process.env.SystemRoot || process.env.windir || 'C:\\Windows';
+  return {
+    ...process.env,
+    PATHEXT: process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC',
+    SystemRoot: root, windir: process.env.windir || root,
+    ComSpec: process.env.ComSpec || path.join(root, 'System32', 'cmd.exe'),
+  };
+})();
+// Longer than the script's own 120 s wait for another change to finish, plus a restart.
+const TIMEOUT_MS = 300_000;
+// After these, Explorer has restarted: start a fresh worker for the next call.
+const RESTARTS_EXPLORER = new Set(['pin', 'unpin', 'reorder', 'refresh', 'restore-pins']);
 const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
-export function buildWinArgs(command, { app, query, icon, iconIndex, noRestart, restartCooldown,
-  item, x, y, value, file, by, corner, flow, autoArrange, snapToGrid, showIcons, position, maxWidth, monitor } = {}) {
-  const args = [command];
-  const apps = [].concat(app ?? []).filter(Boolean);
-  if (apps.length) args.push('-App', apps.map(q).join(','));
-  if (query) args.push('-Query', q(query));
-  if (icon) args.push('-Icon', q(path.resolve(icon)));
-  if (iconIndex != null) args.push('-IconIndex', String(Number(iconIndex)));
-  if (noRestart) args.push('-NoRestart');
-  if (restartCooldown != null) args.push('-RestartCooldown', String(Number(restartCooldown)));
-  const items = [].concat(item ?? []).filter(Boolean);
-  if (items.length) args.push('-Item', items.map(q).join(','));
-  for (const [name, value] of [['X', x], ['Y', y]]) if (value != null) args.push(`-${name}`, q(Number(value)));
-  if (value != null) args.push('-Value', q(value));
-  if (file) args.push('-File', q(path.resolve(file)));
-  for (const [name, value] of [['By', by], ['Corner', corner], ['Flow', flow], ['AutoArrange', autoArrange], ['SnapToGrid', snapToGrid], ['ShowIcons', showIcons]]) {
-    if (value != null) args.push(`-${name}`, q(value));
-  }
-  if (position != null) args.push('-Position', String(Number(position)));
-  if (maxWidth != null) args.push('-MaxWidth', String(Number(maxWidth)));
-  if (monitor != null) args.push('-Monitor', String(Number(monitor)));
-  return args;
-}
-
-export async function win(command, options = {}) {
+function requireWindows(command) {
   if (process.platform !== 'win32') {
     throw new Error(`'${command}' changes the Windows taskbar or desktop and only runs on Windows. Icon creation (search, make, sheet) works on any OS.`);
   }
-  const args = buildWinArgs(command, options);
-  const cmd = `$ProgressPreference='SilentlyContinue'; & ${q(SCRIPT)} ${args.join(' ')}`;
+}
+
+/** Options (camelCase) -> the script's parameters (PascalCase). Paths become absolute. */
+export function winParams({ app, query, icon, iconIndex, noRestart, restartCooldown, item, x, y, value, file,
+  by, corner, flow, autoArrange, snapToGrid, showIcons, position, maxWidth, monitor } = {}) {
+  const p = {};
+  const apps = [].concat(app ?? []).filter(Boolean).map(String);
+  if (apps.length) p.App = apps;
+  if (query) p.Query = String(query);
+  if (icon) p.Icon = path.resolve(icon);
+  if (iconIndex != null) p.IconIndex = Number(iconIndex);
+  if (noRestart) p.NoRestart = true;
+  if (restartCooldown != null) p.RestartCooldown = Number(restartCooldown);
+  const items = [].concat(item ?? []).filter(Boolean).map(String);
+  if (items.length) p.Item = items;
+  if (x != null) p.X = Number(x);
+  if (y != null) p.Y = Number(y);
+  if (value != null) p.Value = String(value);
+  if (file) p.File = path.resolve(file);
+  for (const [k, v] of [['By', by], ['Corner', corner], ['Flow', flow], ['AutoArrange', autoArrange], ['SnapToGrid', snapToGrid], ['ShowIcons', showIcons]]) {
+    if (v != null) p[k] = String(v);
+  }
+  if (position != null) p.Position = Number(position);
+  if (maxWidth != null) p.MaxWidth = Number(maxWidth);
+  if (monitor != null) p.Monitor = Number(monitor);
+  return p;
+}
+
+/** PowerShell argument text for one-shot calls (every value single-quoted). */
+export function buildWinArgs(command, options = {}) {
+  const args = [command];
+  for (const [k, v] of Object.entries(winParams(options))) {
+    if (v === true) args.push(`-${k}`);
+    else if (Array.isArray(v)) args.push(`-${k}`, v.map(q).join(','));
+    else if (typeof v === 'number') args.push(`-${k}`, String(v));
+    else args.push(`-${k}`, q(v));
+  }
+  return args;
+}
+
+function parseReply(out, command) {
+  try { return JSON.parse(out); }
+  catch { throw new Error(`iconwright '${command}' returned unreadable output: ${String(out).slice(0, 300)}`); }
+}
+
+/** One PowerShell process per call. */
+export async function win(command, options = {}) {
+  requireWindows(command);
+  const cmd = `$ProgressPreference='SilentlyContinue'; & ${q(SCRIPT)} ${buildWinArgs(command, options).join(' ')}`;
   const out = await new Promise((resolve, reject) => {
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cmd],
-      { windowsHide: true, maxBuffer: 16 << 20, timeout: 180000 },
+    execFile(PS_EXE, [...PS_ARGS, '-Command', cmd], { windowsHide: true, maxBuffer: 16 << 20, timeout: TIMEOUT_MS, env: PS_ENV },
       (err, stdout, stderr) => {
-        if (err) reject(new Error((stderr || err.message).trim().split('\n').slice(0, 4).join('\n')));
+        if (err?.killed) reject(new Error(`iconwright '${command}' timed out after ${TIMEOUT_MS / 1000} s; it may be half done. Check with doctor and status.`));
+        else if (err) reject(new Error((stderr || err.message).trim().split(/\r?\n/).slice(0, 6).join('\n')));
         else resolve(stdout.trim());
       });
   });
-  try { return JSON.parse(out); } catch { return out; }
+  return parseReply(out, command);
+}
+
+/** A long-lived PowerShell process that runs one request at a time. */
+export class WinWorker {
+  #proc = null; #ready = null; #pending = new Map(); #nextId = 1; #queue = Promise.resolve(); #stderr = [];
+
+  /** Same contract as win(). Requests are queued and run one at a time. */
+  call(command, options = {}) {
+    requireWindows(command);
+    const run = this.#queue.then(() => this.#request(command, options));
+    this.#queue = run.catch(() => {});
+    return run;
+  }
+
+  /** Stops the worker; the next call starts a new one. */
+  close() {
+    const p = this.#proc;
+    this.#proc = null; this.#ready = null;
+    if (p && p.exitCode === null) { p.stdin.end(); setTimeout(() => { if (p.exitCode === null) p.kill(); }, 2000).unref(); }
+  }
+
+  #start() {
+    if (this.#ready) return this.#ready;
+    const proc = spawn(PS_EXE, [...PS_ARGS, '-File', SCRIPT, '__worker'], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: PS_ENV });
+    this.#proc = proc; this.#stderr = [];
+    proc.stdin.setDefaultEncoding('utf8');
+    proc.stderr.setEncoding('utf8').on('data', (d) => { this.#stderr.push(d); if (this.#stderr.length > 20) this.#stderr.shift(); });
+    this.#ready = new Promise((resolve, reject) => {
+      const lines = createInterface({ input: proc.stdout.setEncoding('utf8') });
+      lines.on('line', (line) => {
+        if (!line.trim()) return;
+        let msg; try { msg = JSON.parse(line); } catch { return; }   // ignore stray output
+        if (msg.ready) { resolve(); return; }
+        const waiter = this.#pending.get(msg.id);
+        if (waiter) { this.#pending.delete(msg.id); waiter(msg); }
+      });
+      proc.on('error', (e) => reject(e));
+      proc.on('exit', (code) => {
+        const why = this.#stderr.join('').trim().split(/\r?\n/).slice(-4).join('\n');
+        const err = new Error(`iconwright Windows worker stopped (exit ${code})${why ? `: ${why}` : ''}`);
+        reject(err);
+        for (const waiter of this.#pending.values()) waiter({ ok: false, error: err.message, crashed: true });
+        this.#pending.clear();
+        if (this.#proc === proc) { this.#proc = null; this.#ready = null; }
+      });
+    });
+    this.#ready.catch(() => {});
+    return this.#ready;
+  }
+
+  async #request(command, options) {
+    await this.#start();
+    const proc = this.#proc;
+    const id = this.#nextId++;
+    const reply = await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.#pending.delete(id);
+        proc.kill();
+        resolve({ ok: false, error: `iconwright '${command}' timed out after ${TIMEOUT_MS / 1000} s; it may be half done. Check with doctor and taskbar_status.` });
+      }, TIMEOUT_MS);
+      this.#pending.set(id, (msg) => { clearTimeout(timer); resolve(msg); });
+      proc.stdin.write(JSON.stringify({ id, command, params: winParams(options) }) + '\n');
+    });
+    if (RESTARTS_EXPLORER.has(command)) this.close();
+    if (!reply.ok) throw new Error(reply.error);
+    return reply.result;
+  }
 }

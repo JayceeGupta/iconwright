@@ -34,7 +34,7 @@ function Find-DesktopItem([string]$key, $items) {
   $m = @($items | Where-Object { $_.name -eq $key -or $_.path -eq $key })
   if (-not $m.Count) { $m = @($items | Where-Object { $_.name -like "*$key*" }) }
   if ($m.Count -eq 1) { return $m[0] }
-  if (-not $m.Count) { Fail "No desktop item matches '$key'. Try: iconwright desktop list" }
+  if (-not $m.Count) { Fail "No desktop item matches '$key'. See desktop_info (CLI: iconwright desktop list)." }
   Fail ("'$key' is ambiguous: " + (($m | ForEach-Object name) -join '; '))
 }
 

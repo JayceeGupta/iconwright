@@ -22,7 +22,7 @@
 
   const steps = {
     async white() {
-      say('Calling <code>apply_icon</code> for each pinned app, recolored white…');
+      say('Calling <code>app_apply_icon</code> for all pinned apps with <code>source: "app"</code> and <code>color: "white"</code>…');
       for (const el of apps) {
         if (el.classList.contains('hidden')) continue;
         el.classList.add('pop'); paint(el, '#ffffff');
@@ -34,7 +34,7 @@
     },
     async pin() {
       if (state.pinned) { say('Obsidian is already pinned and first.'); return; }
-      say('Calling <code>pin_apps</code> and <code>reorder_taskbar</code>. Explorer restarts once…');
+      say('Calling <code>taskbar_pin</code> and <code>taskbar_reorder</code>. Explorer restarts…');
       await wait(500);
       await restartExplorer();
       obsidian.classList.remove('hidden');
@@ -44,7 +44,7 @@
     },
     async undo() {
       if (!state.white && !state.pinned) { say('Nothing to undo yet: try another request first.'); return; }
-      say('Calling <code>restore_all_icons</code>' + (state.pinned ? ' and <code>restore_taskbar_backup</code>…' : '…'));
+      say('Calling <code>restore_all_icons</code>' + (state.pinned ? ' and <code>taskbar_restore_backup</code>…' : '…'));
       await wait(500);
       if (state.pinned) { await restartExplorer(); obsidian.classList.add('hidden'); }
       for (const el of apps) { paint(el, el.dataset.color); await wait(60); }

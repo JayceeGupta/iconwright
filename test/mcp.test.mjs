@@ -19,12 +19,21 @@ test('stdio MCP server exposes tools and returns generated icon preview', async 
 
   const { tools } = await client.listTools();
   const core = ['search_icons', 'make_icon', 'make_sheet'];
-  const windows = ['list_apps', 'app_info', 'taskbar_status', 'apply_icon', 'set_icon', 'pin_apps', 'unpin_apps', 'refresh',
-    'restore_icons', 'restore_all_icons', 'restore_taskbar_backup', 'doctor', 'capture', 'reorder_taskbar', 'desktop_info', 'desktop_move',
-    'desktop_arrange', 'desktop_icon_size', 'desktop_options', 'desktop_system_icons', 'desktop_apply_icon', 'desktop_restore_icons',
-    'desktop_layout_save', 'desktop_layout_load'];
+  const windows = ['list_apps', 'app_info', 'app_apply_icon', 'app_set_icon', 'app_restore_icons',
+    'taskbar_status', 'taskbar_pin', 'taskbar_unpin', 'taskbar_reorder', 'taskbar_refresh', 'taskbar_restore_backup',
+    'desktop_info', 'desktop_move', 'desktop_arrange', 'desktop_icon_size', 'desktop_options', 'desktop_system_icons',
+    'desktop_apply_icon', 'desktop_restore_icons', 'desktop_layout_save', 'desktop_layout_load',
+    'restore_all_icons', 'doctor', 'capture'];
   const expected = process.platform === 'win32' ? [...core, ...windows] : core;
   assert.deepEqual(new Set(tools.map((tool) => tool.name)), new Set(expected));
+
+  // Every tool says whether it is read-only, and rejects unknown arguments.
+  for (const tool of tools) {
+    assert.equal(typeof tool.annotations?.readOnlyHint, 'boolean', tool.name);
+    assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
+  }
+  const typo = await client.callTool({ name: 'make_icon', arguments: { source: fixture, colour: 'red', outDir } });
+  assert.equal(typo.isError, true);
 
   const made = await client.callTool({ name: 'make_icon', arguments: { source: fixture, name: 'test-logo', outDir } });
   assert.equal(made.isError, undefined);
@@ -33,12 +42,15 @@ test('stdio MCP server exposes tools and returns generated icon preview', async 
   // CI runners may have no interactive desktop, so live shell calls run on dev machines only.
   if (process.platform === 'win32' && !process.env.CI) {
     // Read-only Windows calls: they must succeed and return JSON.
-    for (const [name, args] of [['list_apps', { query: 'a' }], ['doctor', {}], ['taskbar_status', {}], ['desktop_info', {}]]) {
+    for (const [name, args] of [['list_apps', { query: 'a' }], ['doctor', {}], ['taskbar_status', {}], ['desktop_info', {}], ['capture', { what: 'taskbar' }]]) {
       const r = await client.callTool({ name, arguments: args });
+      if (r.isError && /locked/.test(r.content?.[0]?.text)) continue;   // screenshots need an unlocked screen
       assert.equal(r.isError, undefined, `${name}: ${r.content?.[0]?.text}`);
       assert.doesNotThrow(() => JSON.parse(r.content[0].text), name);
     }
     const doctor = JSON.parse((await client.callTool({ name: 'doctor', arguments: {} })).content[0].text);
     assert.equal(typeof doctor.ok, 'boolean');
+    // The SDK starts servers with a trimmed environment; Windows programs must still run.
+    assert.equal(doctor.checks.nativeCommands.ok, true);
   }
 });

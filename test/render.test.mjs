@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import { makeIcon, ICO_SIZES } from '../src/render.mjs';
+import { makeIcon, ICO_SIZES, parseColor } from '../src/render.mjs';
 import { loadSource, searchIcons } from '../src/source.mjs';
 
 const fixture = new URL('./fixtures/logo.svg', import.meta.url);
@@ -84,4 +84,58 @@ test('source loader accepts raw SVG fixture', async () => {
   const loaded = await loadSource((await readFile(fixture, 'utf8')));
   assert.equal(loaded.kind, 'svg');
   assert.match(loaded.svg, /<svg/);
+});
+
+test('supported CSS colors tint raster and SVG sources consistently', async (t) => {
+  const dir = await tempDir(); t.after(() => rm(dir, { recursive: true, force: true }));
+  const raster = path.join(dir, 'source.png');
+  await writeFile(raster, await sharp({ create: { width: 8, height: 8, channels: 4, background: { r: 20, g: 30, b: 40, alpha: 1 } } }).png().toBuffer());
+  const colors = [
+    'hsl(0, 100%, 50%)', 'hsl(0 100% 50% / 100%)', 'red',
+    'rgb(255, 0, 0)', 'rgb(100% 0% 0%)', '#f00', '#f00f', '#ff0000', '#ff0000ff',
+  ];
+  for (let i = 0; i < colors.length; i++) {
+    assert.deepEqual(parseColor(colors[i]), { r: 255, g: 0, b: 0, alpha: 1 }, colors[i]);
+    for (const [kind, source] of [['raster', raster], ['svg', glyph]]) {
+      const made = await makeIcon({ source, name: `${kind}-${i}`, color: colors[i], pngSize: 16, outDir: dir });
+      const { data, info } = await sharp(made.pngs[0]).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const pixel = (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * 4;
+      assert.ok(data[pixel] > 200 && data[pixel + 1] < 50 && data[pixel + 2] < 50 && data[pixel + 3] > 0, `${kind}: ${colors[i]}`);
+    }
+  }
+});
+
+test('invalid colors are rejected for both SVG and raster sources', async (t) => {
+  const dir = await tempDir(); t.after(() => rm(dir, { recursive: true, force: true }));
+  const raster = path.join(dir, 'source.png');
+  await writeFile(raster, await sharp({ create: { width: 2, height: 2, channels: 4, background: '#fff' } }).png().toBuffer());
+  for (const color of ['#12345', 'purpel', 'url(x)']) {
+    assert.throws(() => parseColor(color), new RegExp(`unsupported color: ${color.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    await assert.rejects(makeIcon({ source: raster, name: 'invalid-raster', color, outDir: dir }), /unsupported color:/);
+    await assert.rejects(makeIcon({ source: glyph, name: 'invalid-svg', color, outDir: dir }), /unsupported color:/);
+  }
+});
+
+test('Iconify search results are sliced to the requested limit', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async (url) => {
+    assert.equal(new URL(url).searchParams.get('limit'), '2');
+    return new Response(JSON.stringify({ icons: Array.from({ length: 30 }, (_, i) => `test:icon-${i}`) }), { status: 200 });
+  };
+  assert.equal((await searchIcons('icons', 2)).length, 2);
+});
+
+test('rejects oversized local sources and Iconify responses', async (t) => {
+  const dir = await tempDir(); t.after(() => rm(dir, { recursive: true, force: true }));
+  const largeFile = path.join(dir, 'too-large.png');
+  const handle = await open(largeFile, 'w');
+  await handle.truncate(25 * 1024 * 1024 + 1);
+  await handle.close();
+  await assert.rejects(loadSource(largeFile), new RegExp(`source file too large \\(max 25 MB\\): ${largeFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async () => new Response('x'.repeat(2 * 1024 * 1024 + 1), { status: 200 });
+  await assert.rejects(loadSource('test:large'), /Iconify response too large \(max 2 MB\)/);
 });

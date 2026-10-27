@@ -1,123 +1,119 @@
-// Windows taskbar commands for the iconwright CLI.
+// Windows commands for the iconwright CLI. Unknown options are errors, so typos never pass silently.
 import { register } from './cli.mjs';
-import { applyIcon, applyDesktopIcon } from './apply.mjs';
+import { parseArgs } from './args.mjs';
+import { applyIcons, applyDesktopIcon } from './apply.mjs';
 import { win } from './win.mjs';
 import { toJson } from './output.mjs';
 
-const BOOL = new Set(['pin', 'refresh', 'no-restart', 'help', 'show', 'hide', 'all']);
-function parse(args) {
-  const v = {}, pos = [];
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (!a.startsWith('--')) { pos.push(a); continue; }
-    const k = a.slice(2);
-    if (BOOL.has(k)) { v[k] = true; continue; }
-    if (i + 1 >= args.length) throw new Error(`missing value for ${a}`);
-    v[k] = args[++i];
-  }
-  return { v, pos };
-}
 const out = toJson;
-const apps = (v, pos) => [].concat(v.app ?? [], pos).filter(Boolean);
+const STYLE = { color: 'string', bg: 'string', shape: 'string', radius: 'number', padding: 'number', name: 'string', out: 'string' };
+const RESTART = { 'no-restart': 'boolean', cooldown: 'number' };
 const restartOpts = (v) => ({ noRestart: v['no-restart'], restartCooldown: v.cooldown });
+const styleOpts = (v) => ({ color: v.color, bg: v.bg, shape: v.shape, radius: v.radius, padding: v.padding, name: v.name, outDir: v.out });
 
-register('apps', async (args) => {
-  const { pos } = parse(args);
-  return out(await win('apps', { query: pos.join(' ') }));
-}, 'apps [query]                          list Start menu apps (name + AppID)');
+// Registers a command whose arguments follow `spec`; `--help` prints `usage`.
+function command(name, usage, spec, handler) {
+  register(name, async (args) => {
+    const { values, positional, help } = parseArgs(args, spec);
+    if (help) return `Usage: iconwright ${usage}`;
+    return out(await handler(values, positional));
+  }, usage);
+}
+const need = (cond, usage) => { if (!cond) throw new Error(`Usage: iconwright ${usage}`); };
 
-register('info', async (args) => {
-  const { v, pos } = parse(args);
-  return out(await win('info', { app: apps(v, pos) }));
-}, 'info <app...>                         shortcuts, AppID, pin state');
+command('apps', 'apps [text]', { positional: 'any' }, (v, pos) => win('apps', { query: pos.join(' ') }));
 
-register('set-icon', async (args) => {
-  const { v, pos } = parse(args);
-  if (!v.icon) throw new Error('set-icon requires --icon <file.ico>');
-  return out(await win('set-icon', { app: apps(v, pos), icon: v.icon, iconIndex: v.index }));
-}, 'set-icon <app> --icon f.ico [--index n]  apply an existing icon');
+command('info', 'info <app...>', { positional: 'any' }, (v, pos) => {
+  need(pos.length, 'info <app...>');
+  return win('info', { app: pos });
+});
 
-register('apply', async (args) => {
-  const { v, pos } = parse(args);
-  const num = (x) => (x === undefined ? undefined : Number(x));
-  const targets = apps(v, pos);
-  if (targets.length !== 1) throw new Error('apply takes exactly one app (quote names with spaces)');
-  return out(await applyIcon({ app: targets[0], source: v.source, icon: v.icon, name: v.name, color: v.color,
-    bg: v.bg, shape: v.shape, radius: num(v.radius), padding: num(v.padding), outDir: v.out,
-    pin: v.pin, refresh: v.refresh, ...restartOpts(v) }));
-}, 'apply <app> (--source ref [--color --bg --shape --radius --padding --name] | --icon f.ico) [--pin] [--refresh]');
+command('set-icon', 'set-icon <app> --icon file.ico [--index n]', { positional: 'any', flags: { icon: 'string', index: 'number' } }, (v, pos) => {
+  need(pos.length === 1 && v.icon, 'set-icon <app> --icon file.ico [--index n]');
+  return win('set-icon', { app: pos[0], icon: v.icon, iconIndex: v.index });
+});
 
-register('refresh', async (args) => {
-  const { v } = parse(args);
-  return out(await win('refresh', restartOpts(v)));
-}, 'refresh [--cooldown s]                restart explorer once so pinned icons reload');
-
-register('pin', async (args) => {
-  const { v, pos } = parse(args);
-  return out(await win('pin', { app: apps(v, pos), icon: v.icon, ...restartOpts(v) }));
-}, 'pin <app...> [--icon f.ico] [--no-restart] [--cooldown s]  (restarts explorer once)');
-
-register('unpin', async (args) => {
-  const { v, pos } = parse(args);
-  return out(await win('unpin', { app: apps(v, pos), ...restartOpts(v) }));
-}, 'unpin <app...> [--no-restart] [--cooldown s]');
-
-register('restore', async (args) => {
-  const { v, pos } = parse(args);
-  if (v.all) return out(await win('restore-all'));
-  if (!apps(v, pos).length) throw new Error('restore <app...> | restore --all');
-  return out(await win('restore', { app: apps(v, pos) }));
-}, 'restore <app...> | --all              put original icons back (--all: every app and desktop item)');
-
-register('restore-pins', async (args) => {
-  const { v } = parse(args);
-  const from = v.from ?? 'last';
-  if (!['last', 'original'].includes(from)) throw new Error('restore-pins [--from last|original]');
-  return out(await win('restore-pins', { value: from }));
-}, 'restore-pins [--from last|original]   undo pin-list changes from a backup (restarts explorer)');
-
-register('capture', async (args) => {
-  const { v, pos } = parse(args);
-  const what = pos[0] ?? 'taskbar';
-  if (!['taskbar', 'desktop', 'screen'].includes(what)) throw new Error('capture [taskbar|desktop|screen] [--out file.png] [--max-width px]');
-  return out(await win('capture', { value: what, file: v.out, maxWidth: v['max-width'] }));
-}, 'capture [taskbar|desktop|screen] [--out f.png]  screenshot to check a change');
-
-register('doctor', async () => out(await win('doctor')), 'doctor                                check this PC can run the Windows commands');
-
-register('status', async () => out(await win('status')), 'status                                pinned items and their icons');
-
-register('reorder', async (args) => {
-  const { v, pos } = parse(args);
-  return out(await win('reorder', { app: pos, position: v.position, ...restartOpts(v) }));
-}, 'reorder <app...> [--position n] [--no-restart] [--cooldown s]');
-
-register('desktop', async (args) => {
-  const sub = args.shift();
-  const { v, pos } = parse(args);
-  const item = pos;
-  const desktopOpts = { item };
-  switch (sub) {
-    case 'list': return out(await win('desktop-list'));
-    case 'move':
-      if (!item[0] || v.x == null || v.y == null) throw new Error('desktop move <item> --x px --y px');
-      return out(await win('desktop-move', { item: item[0], x: v.x, y: v.y }));
-    case 'arrange': return out(await win('desktop-arrange', { ...desktopOpts, by: v.by, corner: v.corner, flow: v.flow, monitor: v.monitor }));
-    case 'size': return out(await win('desktop-size', { value: item[0] }));
-    case 'options': return out(await win('desktop-options', { autoArrange: v['auto-arrange'], snapToGrid: v.snap, showIcons: v.icons }));
-    case 'system':
-      if (Boolean(v.show) === Boolean(v.hide)) throw new Error('desktop system <names...> --show|--hide');
-      return out(await win('desktop-system', { item, value: v.show ? 'show' : 'hide' }));
-    case 'apply': {
-      const target = item[0];
-      if (!target) throw new Error('desktop apply <item> (--source ref | --icon f.ico)');
-      const num = (x) => (x === undefined ? undefined : Number(x));
-      return out(await applyDesktopIcon({ item: target, source: v.source, icon: v.icon, name: v.name, color: v.color,
-        bg: v.bg, shape: v.shape, radius: num(v.radius), padding: num(v.padding), outDir: v.out, iconIndex: num(v.index) }));
-    }
-    case 'restore': return out(await win('desktop-restore', { item }));
-    case 'save': return out(await win('desktop-save', { file: item[0] }));
-    case 'load': return out(await win('desktop-load', { file: item[0] }));
-    default: throw new Error('desktop list|move|arrange|size|options|system|apply|restore|save|load');
+const APPLY = 'apply <app...> --source <ref|app> [style] [--pin] [--refresh]   or   apply <app> --icon file.ico';
+command('apply', APPLY, { positional: 'any', flags: { source: 'string', icon: 'string', index: 'number', pin: 'boolean', refresh: 'boolean', ...STYLE, ...RESTART } }, (v, pos) => {
+  need(pos.length && Boolean(v.source) !== Boolean(v.icon), APPLY);
+  if (v.icon) {
+    need(pos.length === 1, APPLY);
+    return win('set-icon', { app: pos[0], icon: v.icon, iconIndex: v.index });
   }
+  return applyIcons({ apps: pos, source: v.source, ...styleOpts(v), pin: v.pin, refresh: v.refresh, ...restartOpts(v) }, win);
+});
+
+command('pin', 'pin <app...> [--icon file.ico] [--no-restart] [--cooldown s]', { positional: 'any', flags: { icon: 'string', ...RESTART } }, (v, pos) => {
+  need(pos.length, 'pin <app...>');
+  return win('pin', { app: pos, icon: v.icon, ...restartOpts(v) });
+});
+
+command('unpin', 'unpin <app...> [--no-restart] [--cooldown s]', { positional: 'any', flags: RESTART }, (v, pos) => {
+  need(pos.length, 'unpin <app...>');
+  return win('unpin', { app: pos, ...restartOpts(v) });
+});
+
+command('reorder', 'reorder <app...> [--position n] [--no-restart] [--cooldown s]', { positional: 'any', flags: { position: 'number', ...RESTART } }, (v, pos) => {
+  need(pos.length, 'reorder <app...> [--position n]');
+  return win('reorder', { app: pos, position: v.position, ...restartOpts(v) });
+});
+
+command('refresh', 'refresh [--cooldown s]', { flags: { cooldown: 'number' } }, (v) => win('refresh', restartOpts(v)));
+
+command('status', 'status', {}, () => win('status'));
+
+command('restore', 'restore <app...> | restore --all', { positional: 'any', flags: { all: 'boolean' } }, (v, pos) => {
+  if (v.all) { need(!pos.length, 'restore <app...> | restore --all'); return win('restore-all'); }
+  need(pos.length, 'restore <app...> | restore --all');
+  return win('restore', { app: pos });
+});
+
+command('restore-pins', 'restore-pins [--from last|original]', { flags: { from: 'string' } }, (v) => {
+  const from = v.from ?? 'last';
+  need(['last', 'original'].includes(from), 'restore-pins [--from last|original]');
+  return win('restore-pins', { value: from });
+});
+
+command('capture', 'capture [taskbar|desktop|screen] [--out file.png] [--max-width px]', { positional: 'any', flags: { out: 'string', 'max-width': 'number' } }, (v, pos) => {
+  const what = pos[0] ?? 'taskbar';
+  need(pos.length <= 1 && ['taskbar', 'desktop', 'screen'].includes(what), 'capture [taskbar|desktop|screen] [--out file.png]');
+  return win('capture', { value: what, file: v.out, maxWidth: v['max-width'] });
+});
+
+command('doctor', 'doctor', {}, () => win('doctor'));
+
+// desktop <sub> ...: each subcommand has its own options.
+const DESKTOP = {
+  list: [{}, () => win('desktop-list')],
+  move: [{ positional: 'any', flags: { x: 'number', y: 'number' } }, (v, pos) => {
+    need(pos.length === 1 && v.x != null && v.y != null, 'desktop move <item> --x px --y px');
+    return win('desktop-move', { item: pos[0], x: v.x, y: v.y });
+  }],
+  arrange: [{ positional: 'any', flags: { by: 'string', corner: 'string', flow: 'string', monitor: 'number' } },
+    (v, pos) => win('desktop-arrange', { item: pos, by: v.by, corner: v.corner, flow: v.flow, monitor: v.monitor })],
+  size: [{ positional: 'any' }, (v, pos) => {
+    need(pos.length === 1, 'desktop size small|medium|large|xl|huge|<16-256>');
+    return win('desktop-size', { value: pos[0] });
+  }],
+  options: [{ flags: { 'auto-arrange': 'string', snap: 'string', icons: 'string' } },
+    (v) => win('desktop-options', { autoArrange: v['auto-arrange'], snapToGrid: v.snap, showIcons: v.icons })],
+  system: [{ positional: 'any', flags: { show: 'boolean', hide: 'boolean' } }, (v, pos) => {
+    need(pos.length && Boolean(v.show) !== Boolean(v.hide), 'desktop system <names...> --show|--hide');
+    return win('desktop-system', { item: pos, value: v.show ? 'show' : 'hide' });
+  }],
+  apply: [{ positional: 'any', flags: { source: 'string', icon: 'string', index: 'number', ...STYLE } }, (v, pos) => {
+    need(pos.length === 1, 'desktop apply <item> (--source <ref> [style] | --icon file.ico)');
+    return applyDesktopIcon({ item: pos[0], source: v.source, icon: v.icon, iconIndex: v.index, ...styleOpts(v) }, win);
+  }],
+  restore: [{ positional: 'any' }, (v, pos) => { need(pos.length, 'desktop restore <item...>'); return win('desktop-restore', { item: pos }); }],
+  save: [{ positional: 'any' }, (v, pos) => { need(pos.length === 1, 'desktop save <file.json>'); return win('desktop-save', { file: pos[0] }); }],
+  load: [{ positional: 'any' }, (v, pos) => { need(pos.length === 1, 'desktop load <file.json>'); return win('desktop-load', { file: pos[0] }); }],
+};
+register('desktop', async (args) => {
+  const [sub, ...rest] = args;
+  const entry = DESKTOP[sub];
+  if (!entry) throw new Error(`Usage: iconwright desktop ${Object.keys(DESKTOP).join('|')} ...`);
+  const { values, positional, help } = parseArgs(rest, entry[0]);
+  if (help) return 'See: iconwright help';
+  return out(await entry[1](values, positional));
 }, 'desktop <list|move|arrange|size|options|system|apply|restore|save|load> ...');
