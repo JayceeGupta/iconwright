@@ -16,10 +16,14 @@
 param(
   [Parameter(Position = 0)][string]$Command = 'help',
   [string[]]$App,
+  [string[]]$Pin,
+  [string[]]$Unpin,
+  [string[]]$Order,
   [string]$Query,
   [string]$Icon,
   [int]$IconIndex = 0,
   [switch]$NoRestart,
+  [switch]$DryRun,
   [int]$RestartCooldown = 0,
   [int]$Position = 0,            # reorder: target index (negative = from the end)
   # desktop-* commands
@@ -476,6 +480,73 @@ function Cmd-Reorder($infos, [int]$pos) {
 }
 function Get-PinNames($paths) { @($paths | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_) }) }
 
+# Applies pin, unpin and reorder requests as one planned Taskband change.
+function Cmd-Pins($pinInfos, $unpinInfos, $orderInfos, [int]$pos) {
+  $list = @([Iconwright.Taskband]::List())
+  $pinPaths = @{}; $unpinPaths = @{}; $orderPaths = @{}
+  $already = @(); $todo = @()
+  foreach ($i in $pinInfos) {
+    $existing = @($i.pinned | Where-Object { $list -contains $_ })
+    if ($existing.Count) { $already += $i.name }
+    else { $todo += $i; $pinPaths[$i.name] = Join-Path $PinnedDir ($i.name + '.lnk') }
+  }
+  $notPinned = @(); $remove = @()
+  foreach ($i in $unpinInfos) {
+    $matches = @($i.pinned | Where-Object { $list -contains $_ })
+    if (-not $matches.Count) { $notPinned += $i.name }
+    else { $unpinPaths[$i.name] = $matches; $remove += $matches }
+  }
+  $remove = @($remove | Select-Object -Unique)
+  $final = @($list | Where-Object { $remove -notcontains $_ })
+  foreach ($i in $todo) { $final += $pinPaths[$i.name] }
+
+  $pinNames = @($pinInfos | Where-Object { $_ } | ForEach-Object { $_.name })
+  $unpinNames = @($unpinInfos | Where-Object { $_ } | ForEach-Object { $_.name })
+  foreach ($n in $pinNames) { if ($unpinNames -contains $n) { Fail "'$n' cannot be both pinned and unpinned" } }
+  foreach ($n in $unpinNames) { if (@($orderInfos | Where-Object { $_ -and $_.name -eq $n }).Count) { Fail "'$n' cannot be both unpinned and ordered" } }
+  $seenOrder = @()
+  foreach ($i in $orderInfos) {
+    if ($seenOrder -contains $i.name) { Fail "'$($i.name)' appears more than once in -Order" }
+    $seenOrder += $i.name
+    $paths = @($i.pinned | Where-Object { $list -contains $_ -and $remove -notcontains $_ })
+    if (-not $paths.Count -and $pinPaths.ContainsKey($i.name)) { $paths = @($pinPaths[$i.name]) }
+    if (-not $paths.Count) { Fail "'$($i.name)' is not pinned and is not being pinned" }
+    $orderPaths[$i.name] = $paths
+  }
+  $move = @(foreach ($i in $orderInfos) { foreach ($p in $orderPaths[$i.name]) { if ($final -contains $p) { $p } } })
+  $rest = @($final | Where-Object { $move -notcontains $_ })
+  if (@($orderInfos | Where-Object { $_ }).Count) {
+    if ($pos -lt 0) { $pos = $rest.Count + 1 + $pos }
+    $pos = [math]::Max(0, [math]::Min($pos, $rest.Count))
+    $final = @($rest | Select-Object -First $pos) + $move + @($rest | Select-Object -Skip $pos)
+  }
+  $changed = (($final -join '|') -ne ($list -join '|'))
+  $wouldRestart = [bool]($changed -and -not $NoRestart)
+  if ($DryRun) {
+    return [pscustomobject]@{ dryRun = $true; wouldPin = @($todo | ForEach-Object { $_.name });
+      wouldUnpin = @($unpinInfos | Where-Object { $_ -and $unpinPaths.ContainsKey($_.name) } | ForEach-Object { $_.name });
+      alreadyPinned = $already; notPinned = $notPinned; order = Get-PinNames $final; restart = $wouldRestart }
+  }
+  if (-not $changed) {
+    return [pscustomobject]@{ ok = $true; changed = $false; pinned = @(); unpinned = @();
+      alreadyPinned = $already; notPinned = $notPinned; order = Get-PinNames $list; restarted = $false; explorer = $null }
+  }
+  $script:NewPins = @()
+  Invoke-PinChange { $script:NewPins = @(foreach ($i in $todo) { New-PinShortcut $i }) } {
+    foreach ($p in $remove) { [void][Iconwright.Taskband]::Remove($p) }
+    foreach ($d in $script:NewPins) { [Iconwright.Taskband]::Append($d.path, $d.appId) }
+    $now = @([Iconwright.Taskband]::List())
+    if (($now -join '|') -ne ($final -join '|')) { [Iconwright.Taskband]::SetOrder([string[]]$final) }
+  }
+  foreach ($p in $remove) { Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue }
+  $now = @([Iconwright.Taskband]::List())
+  [pscustomobject]@{ ok = (($now -join '|') -eq ($final -join '|')); changed = $true;
+    pinned = @($script:NewPins | ForEach-Object { [IO.Path]::GetFileNameWithoutExtension($_.path) });
+    unpinned = @($unpinInfos | Where-Object { $_ -and $unpinPaths.ContainsKey($_.name) } | ForEach-Object { $_.name });
+    alreadyPinned = $already; notPinned = $notPinned; order = Get-PinNames $now;
+    restarted = [bool](-not $NoRestart); explorer = $script:RestartReport }
+}
+
 function Cmd-Unpin($infos) {
   $pins = @($infos | ForEach-Object { @($_.pinned) } | Where-Object { $_ })
   if (-not $pins.Count) { return [pscustomobject]@{ ok = $true; already = $true } }
@@ -593,7 +664,7 @@ function Cmd-Doctor {
 $script:Lock = New-Object Threading.Mutex($false, 'Local\iconwright-change')
 $script:Locked = $false
 function Enter-Lock([string]$cmd) {
-  if ($cmd -in 'apps', 'help') { return }
+  if ($cmd -in 'apps', 'help' -or ($cmd -eq 'pins' -and $DryRun)) { return }
   $got = $false
   try { $got = $script:Lock.WaitOne([TimeSpan]::FromSeconds(120)) } catch [Threading.AbandonedMutexException] { $got = $true }
   if (-not $got) { Fail 'Another iconwright change is still running; try again when it finishes.' }
@@ -670,6 +741,13 @@ switch -Wildcard ($Command.ToLower()) {
   'restore-all' { Out-Json (Cmd-RestoreAll) }
   'desktop-*' { Invoke-DesktopCommand $Command.Substring(8).ToLower() }
   'reorder' { Out-Json (Cmd-Reorder @($App | ForEach-Object { Resolve-App $_ }) $Position) }
+  'pins' {
+    if ($Icon -and @($Pin).Count -ne 1) { Fail '-Icon with pins takes exactly one -Pin' }
+    $pinInfos = if ($Pin) { @($Pin | ForEach-Object { Resolve-App $_ }) } else { @() }
+    $unpinInfos = if ($Unpin) { @($Unpin | ForEach-Object { Resolve-App $_ }) } else { @() }
+    $orderInfos = if ($Order) { @($Order | ForEach-Object { Resolve-App $_ }) } else { @() }
+    Out-Json (Cmd-Pins $pinInfos $unpinInfos $orderInfos $Position)
+  }
   'apps' {
     Out-Json @(Find-Apps $Query | Select-Object -First 50 | ForEach-Object { [pscustomobject]@{ name = $_.Name; appId = $_.AppID } })
   }
@@ -710,7 +788,7 @@ switch -Wildcard ($Command.ToLower()) {
     }) })
   }
   default {
-    Out-Json 'Commands: apps | info | set-icon | set-icons | app-icon-image | pin | unpin | reorder | restore | restore-all | restore-pins | refresh | status | doctor | capture | desktop-<list|move|arrange|size|options|system|set-icon|restore|save|load>. Use the Node CLI (iconwright help) for documented usage.'
+    Out-Json 'Commands: apps | info | set-icon | set-icons | app-icon-image | pin | unpin | reorder | pins | restore | restore-all | restore-pins | refresh | status | doctor | capture | desktop-<list|move|arrange|size|options|system|set-icon|restore|save|load>. Use the Node CLI (iconwright help) for documented usage.'
   }
 }
 }
@@ -721,7 +799,7 @@ switch -Wildcard ($Command.ToLower()) {
 function Start-Worker {
   $utf8 = New-Object Text.UTF8Encoding($false)
   [Console]::InputEncoding = $utf8; [Console]::OutputEncoding = $utf8
-  $defaults = [ordered]@{ App = $null; Query = $null; Icon = $null; IconIndex = 0; NoRestart = $false
+  $defaults = [ordered]@{ App = $null; Pin = $null; Unpin = $null; Order = $null; Query = $null; Icon = $null; IconIndex = 0; NoRestart = $false; DryRun = $false
     RestartCooldown = $(if ($env:ICONWRIGHT_RESTART_COOLDOWN) { [int]$env:ICONWRIGHT_RESTART_COOLDOWN } else { 0 })
     Position = 0; Item = $null; X = 0; Y = 0; Value = $null; File = $null; By = $null; Corner = $null; Flow = $null
     AutoArrange = $null; SnapToGrid = $null; ShowIcons = $null; MaxWidth = 1600; Monitor = 0 }

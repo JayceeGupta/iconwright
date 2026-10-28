@@ -4,12 +4,13 @@ import { parseArgs } from './args.mjs';
 import { applyIcons, applyDesktopIcon } from './apply.mjs';
 import { win } from './win.mjs';
 import { toJson } from './output.mjs';
+import { parseStyle } from './render.mjs';
 
 const out = toJson;
-const STYLE = { color: 'string', bg: 'string', shape: 'string', radius: 'number', padding: 'number', name: 'string', out: 'string' };
+const STYLE = { style: 'string', color: 'string', bg: 'string', shape: 'string', radius: 'number', padding: 'number', shadow: 'boolean', name: 'string', out: 'string' };
 const RESTART = { 'no-restart': 'boolean', cooldown: 'number' };
 const restartOpts = (v) => ({ noRestart: v['no-restart'], restartCooldown: v.cooldown });
-const styleOpts = (v) => ({ color: v.color, bg: v.bg, shape: v.shape, radius: v.radius, padding: v.padding, name: v.name, outDir: v.out });
+const styleOpts = (v) => ({ ...parseStyle(v.style), ...Object.fromEntries(['color','bg','shape','radius','padding','shadow'].filter((k) => v[k] !== undefined).map((k) => [k,v[k]])), name: v.name, outDir: v.out });
 
 // Registers a command whose arguments follow `spec`; `--help` prints `usage`.
 function command(name, usage, spec, handler) {
@@ -41,6 +42,12 @@ command('apply', APPLY, { positional: 'any', flags: { source: 'string', icon: 's
     return win('set-icon', { app: pos[0], icon: v.icon, iconIndex: v.index });
   }
   return applyIcons({ apps: pos, source: v.source, ...styleOpts(v), pin: v.pin, refresh: v.refresh, ...restartOpts(v) }, win);
+});
+
+command('pins', 'pins [--pin a,b] [--unpin c] [--order a,b] [--position n] [--dry-run] [--no-restart] [--restart-cooldown n]', { flags: { pin: 'string', unpin: 'string', order: 'string', position: 'number', 'dry-run': 'boolean', 'no-restart': 'boolean', 'restart-cooldown': 'number' } }, (v) => {
+  need(v.pin || v.unpin || v.order, 'pins [--pin a,b] [--unpin c] [--order a,b]');
+  const list = (s) => s?.split(',').map((x) => x.trim()).filter(Boolean);
+  return win('pins', { pin: list(v.pin), unpin: list(v.unpin), order: list(v.order), position: v.position, dryRun: v['dry-run'], noRestart: v['no-restart'], restartCooldown: v['restart-cooldown'] });
 });
 
 command('pin', 'pin <app...> [--icon file.ico] [--no-restart] [--cooldown s]', { positional: 'any', flags: { icon: 'string', ...RESTART } }, (v, pos) => {

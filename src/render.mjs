@@ -1,272 +1,238 @@
+// The icon engine: source -> styled 1024 px master -> .ico, PNGs and other formats.
+// renderMaster() works in memory (for previews, design grids and scenes); makeIcon() writes files.
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
+import { stat } from 'node:fs/promises';
 import sharp from 'sharp';
 import pngToIco from 'png-to-ico';
 import { loadSource } from './source.mjs';
+import { parseColor, parsePaint, recolorSvg } from './color.mjs';
+import { atomicWrite, ensureDir } from './fsutil.mjs';
 
-export const ICO_SIZES = [256, 128, 64, 48, 32, 24, 16];
+export { parseColor };
+// 20 and 40 px keep icons crisp at 125% and 250% display scaling.
+export const ICO_SIZES = [256, 128, 64, 48, 40, 32, 24, 20, 16];
+export const SHAPES = ['none', 'square', 'rounded', 'squircle', 'circle'];
+export const STYLE_KEYS = ['color', 'bg', 'shape', 'radius', 'padding', 'shadow'];
+export const FORMATS = ['ico', 'png', 'icns', 'web', 'pngset'];
 const MASTER = 1024;
 const KERNEL = 'lanczos3';
-const NAMED_COLORS = Object.fromEntries(`
-aliceblue:f0f8ff antiquewhite:faebd7 aqua:00ffff aquamarine:7fffd4 azure:f0ffff beige:f5f5dc bisque:ffe4c4 black:000000 blanchedalmond:ffebcd blue:0000ff blueviolet:8a2be2 brown:a52a2a burlywood:deb887 cadetblue:5f9ea0 chartreuse:7fff00 chocolate:d2691e coral:ff7f50 cornflowerblue:6495ed cornsilk:fff8dc crimson:dc143c cyan:00ffff darkblue:00008b darkcyan:008b8b darkgoldenrod:b8860b darkgray:a9a9a9 darkgreen:006400 darkgrey:a9a9a9 darkkhaki:bdb76b darkmagenta:8b008b darkolivegreen:556b2f darkorange:ff8c00 darkorchid:9932cc darkred:8b0000 darksalmon:e9967a darkseagreen:8fbc8f darkslateblue:483d8b darkslategray:2f4f4f darkslategrey:2f4f4f darkturquoise:00ced1 darkviolet:9400d3 deeppink:ff1493 deepskyblue:00bfff dimgray:696969 dimgrey:696969 dodgerblue:1e90ff firebrick:b22222 floralwhite:fffaf0 forestgreen:228b22 fuchsia:ff00ff gainsboro:dcdcdc ghostwhite:f8f8ff gold:ffd700 goldenrod:daa520 gray:808080 green:008000 greenyellow:adff2f grey:808080 honeydew:f0fff0 hotpink:ff69b4 indianred:cd5c5c indigo:4b0082 ivory:fffff0 khaki:f0e68c lavender:e6e6fa lavenderblush:fff0f5 lawngreen:7cfc00 lemonchiffon:fffacd lightblue:add8e6 lightcoral:f08080 lightcyan:e0ffff lightgoldenrodyellow:fafad2 lightgray:d3d3d3 lightgreen:90ee90 lightgrey:d3d3d3 lightpink:ffb6c1 lightsalmon:ffa07a lightseagreen:20b2aa lightskyblue:87cefa lightslategray:778899 lightslategrey:778899 lightsteelblue:b0c4de lightyellow:ffffe0 lime:00ff00 limegreen:32cd32 linen:faf0e6 magenta:ff00ff maroon:800000 mediumaquamarine:66cdaa mediumblue:0000cd mediumorchid:ba55d3 mediumpurple:9370db mediumseagreen:3cb371 mediumslateblue:7b68ee mediumspringgreen:00fa9a mediumturquoise:48d1cc mediumvioletred:c71585 midnightblue:191970 mintcream:f5fffa mistyrose:ffe4e1 moccasin:ffe4b5 navajowhite:ffdead navy:000080 oldlace:fdf5e6 olive:808000 olivedrab:6b8e23 orange:ffa500 orangered:ff4500 orchid:da70d6 palegoldenrod:eee8aa palegreen:98fb98 paleturquoise:afeeee palevioletred:db7093 papayawhip:ffefd5 peachpuff:ffdab9 peru:cd853f pink:ffc0cb plum:dda0dd powderblue:b0e0e6 purple:800080 rebeccapurple:663399 red:ff0000 rosybrown:bc8f8f royalblue:4169e1 saddlebrown:8b4513 salmon:fa8072 sandybrown:f4a460 seagreen:2e8b57 seashell:fff5ee sienna:a0522d silver:c0c0c0 skyblue:87ceeb slateblue:6a5acd slategray:708090 slategrey:708090 snow:fffafa springgreen:00ff7f steelblue:4682b4 tan:d2b48c teal:008080 thistle:d8bfd8 tomato:ff6347 turquoise:40e0d0 violet:ee82ee wheat:f5deb3 white:ffffff whitesmoke:f5f5f5 yellow:ffff00 yellowgreen:9acd32
-`.trim().split(/\s+/).map((entry) => entry.split(':')));
+const CLEAR = { r: 0, g: 0, b: 0, alpha: 0 };
 
-function defaultOutDir() {
+export function defaultOutDir() {
   return process.platform === 'win32'
     ? path.resolve(process.env.LOCALAPPDATA || path.join(homedir(), 'AppData', 'Local'), 'iconwright', 'icons')
     : path.resolve(homedir(), '.iconwright', 'icons');
 }
 
-function safeName(name) {
+export function safeName(name) {
   const clean = String(name || 'icon').normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^[.-]+|[.-]+$/g, '');
   return clean || 'icon';
 }
 
-const NUMBER = '[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?';
-
-function channel(value) {
-  const percent = value.endsWith('%');
-  const number = Number(percent ? value.slice(0, -1) : value);
-  if (!Number.isFinite(number)) return null;
-  return Math.round(Math.max(0, Math.min(255, percent ? number * 255 / 100 : number)));
+/** Only the style options that change the look (drops undefined). */
+export function pickStyle(o = {}) {
+  return Object.fromEntries(STYLE_KEYS.filter((k) => o[k] !== undefined && o[k] !== null).map((k) => [k, o[k]]));
 }
 
-function alphaValue(value) {
-  if (value === undefined) return 1;
-  const percent = value.endsWith('%');
-  const text = percent ? value.slice(0, -1) : value;
-  if (!new RegExp(`^${NUMBER}$`).test(text)) return null;
-  const number = Number(text);
-  if (!Number.isFinite(number)) return null;
-  return Math.max(0, Math.min(1, percent ? number / 100 : number));
-}
+const fit = (size) => ({ fit: 'contain', background: CLEAR, kernel: KERNEL });
+export const resizePng = (png, size) => sharp(png).resize(size, size, fit(size)).png().toBuffer();
 
-function hslToRgb(hue, saturation, lightness) {
-  const h = ((hue % 360) + 360) % 360 / 360;
-  const s = Math.max(0, Math.min(1, saturation / 100));
-  const l = Math.max(0, Math.min(1, lightness / 100));
-  if (s === 0) {
-    const value = Math.round(l * 255);
-    return { r: value, g: value, b: value };
-  }
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  const hueChannel = (t) => {
-    let x = t;
-    if (x < 0) x += 1;
-    if (x > 1) x -= 1;
-    if (x < 1 / 6) return p + (q - p) * 6 * x;
-    if (x < 1 / 2) return q;
-    if (x < 2 / 3) return p + (q - p) * (2 / 3 - x) * 6;
-    return p;
-  };
-  return {
-    r: Math.round(hueChannel(h + 1 / 3) * 255),
-    g: Math.round(hueChannel(h) * 255),
-    b: Math.round(hueChannel(h - 1 / 3) * 255),
-  };
-}
+// ---------- glyph: the source artwork, recolored and trimmed to its visible pixels ----------
+// Design loops render the same source in many styles; cache the expensive part.
+const glyphCache = new Map();
+const GLYPH_CACHE_MAX = 64;
 
-function hueDegrees(value) {
-  const match = new RegExp(`^(${NUMBER})(deg|grad|rad|turn)?$`, 'i').exec(value);
-  if (!match) return null;
-  const number = Number(match[1]);
-  const unit = (match[2] || 'deg').toLowerCase();
-  if (!Number.isFinite(number)) return null;
-  return number * (unit === 'turn' ? 360 : unit === 'grad' ? 0.9 : unit === 'rad' ? 180 / Math.PI : 1);
-}
-
-function splitFunctionalArgs(body) {
-  if (body.includes(',')) {
-    const parts = body.split(',').map((part) => part.trim());
-    if (parts.some((part) => !part) || parts.some((part) => part.includes('/'))) return null;
-    return parts;
-  }
-  const slash = body.split('/');
-  if (slash.length > 2) return null;
-  const parts = slash[0].trim().split(/\s+/);
-  if (slash.length === 2) parts.push(slash[1].trim());
-  if (parts.some((part) => !part)) return null;
-  return parts;
-}
-
-export function parseColor(value) {
-  const input = String(value).trim();
-  const hex = /^#([\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.exec(input);
-  if (hex) {
-    let digits = hex[1];
-    if (digits.length <= 4) digits = [...digits].map((part) => part + part).join('');
-    return {
-      r: parseInt(digits.slice(0, 2), 16),
-      g: parseInt(digits.slice(2, 4), 16),
-      b: parseInt(digits.slice(4, 6), 16),
-      alpha: digits.length === 8 ? parseInt(digits.slice(6, 8), 16) / 255 : 1,
-    };
-  }
-  const normalized = input.toLowerCase();
-  if (normalized === 'transparent') return { r: 0, g: 0, b: 0, alpha: 0 };
-  if (NAMED_COLORS[normalized]) return parseColor(`#${NAMED_COLORS[normalized]}`);
-
-  const fn = /^(rgba?|hsla?)\((.*)\)$/i.exec(input);
-  if (fn) {
-    const parts = splitFunctionalArgs(fn[2]);
-    const isHsl = fn[1].toLowerCase().startsWith('hsl');
-    const hasComma = fn[2].includes(',');
-    const expectedMin = 3;
-    if (!parts || parts.length < expectedMin || parts.length > 4 || (!hasComma && parts.length === 4 && !fn[2].includes('/')) || (hasComma && parts.length === 4 && !parts[3])) {
-      throw new Error(`unsupported color: ${input}`);
-    }
-    const alpha = alphaValue(parts[3]);
-    if (alpha === null) throw new Error(`unsupported color: ${input}`);
-    if (!isHsl) {
-      const channels = parts.slice(0, 3).map((part) => {
-        if (!(new RegExp(`^(?:${NUMBER}|${NUMBER}%)$`).test(part))) return null;
-        return channel(part);
-      });
-      if (channels.some((part) => part === null)) throw new Error(`unsupported color: ${input}`);
-      return { r: channels[0], g: channels[1], b: channels[2], alpha };
-    }
-    const hue = hueDegrees(parts[0]);
-    const percentage = new RegExp(`^(${NUMBER})%$`);
-    const sat = percentage.exec(parts[1]), light = percentage.exec(parts[2]);
-    if (hue === null || !sat || !light) throw new Error(`unsupported color: ${input}`);
-    return { ...hslToRgb(hue, Number(sat[1]), Number(light[1])), alpha };
-  }
-  throw new Error(`unsupported color: ${input}`);
-}
-
-function safeColor(value) {
-  const { r, g, b, alpha } = parseColor(value);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function recolorSvg(svg, color) {
-  const target = safeColor(color);
-  const colorValue = '(?:currentColor|#[\\da-f]{3,8}\\b|rgba?\\([^)]*\\)|hsla?\\([^)]*\\)|[a-z]+)';
-  const fillStroke = new RegExp(`(\\b(?:fill|stroke)\\s*=\\s*)(["'])\\s*(${colorValue})\\s*\\2`, 'gi');
-  let found = false;
-  svg = svg.replace(fillStroke, (whole, lead, quote, value) => {
-    if (/^(?:none|transparent)$/i.test(value)) return whole;
-    found = true;
-    return `${lead}${quote}${target}${quote}`;
-  });
-  // Inline CSS declarations can contain colors that are not presentation attributes.
-  svg = svg.replace(/(\b(?:fill|stroke)\s*:\s*)([^;"'}]+)/gi, (whole, lead, value) => {
-    const trimmed = value.trim();
-    if (/^(?:none|transparent)$/i.test(trimmed) || /^url\(/i.test(trimmed)) return whole;
-    found = true;
-    return `${lead}${target}`;
-  });
-  if (!found) {
-    if (/\bfill\s*=\s*(["'])[^"']*\1/i.test(svg)) {
-      svg = svg.replace(/\bfill\s*=\s*(["'])[^"']*\1/i, `fill="${target}"`);
-    } else svg = svg.replace(/<svg\b/i, `<svg fill="${target}"`);
-  }
-  return svg;
-}
-
-function rasterImage(input) {
-  return sharp(input, { limitInputPixels: 50_000_000 });
+async function sourceKey(ref) {
+  const value = String(ref).trim();
+  if (value.startsWith('<')) return 'svg:' + createHash('sha1').update(value).digest('hex');
+  if (/^[a-z0-9-]+:[a-z0-9-]+$/i.test(value) && !/^[a-z]:/i.test(value)) return 'id:' + value;
+  const s = await stat(value).catch(() => null);
+  return `file:${path.resolve(value)}:${s?.mtimeMs}:${s?.size}`;
 }
 
 async function sourcePng(source, color) {
   const hasColor = color !== undefined && color !== null;
   if (source.svg !== undefined) {
-    let svg = source.svg;
-    if (hasColor) svg = recolorSvg(svg, color);
-    return sharp(Buffer.from(svg), { density: 2400 }).resize(MASTER, MASTER, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: KERNEL }).png().toBuffer();
+    const svg = hasColor ? recolorSvg(source.svg, color) : source.svg;
+    return sharp(Buffer.from(svg), { density: 2400 }).resize(MASTER, MASTER, fit()).png().toBuffer();
   }
-  let image = rasterImage(source.raster).rotate().ensureAlpha();
-  if (hasColor) {
-    const tint = parseColor(color);
-    const { data, info } = await rasterImage(source.raster).rotate().ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const tinted = Buffer.from(data);
-    for (let i = 0; i < tinted.length; i += 4) {
-      tinted[i] = tint.r;
-      tinted[i + 1] = tint.g;
-      tinted[i + 2] = tint.b;
-      tinted[i + 3] = Math.round(data[i + 3] * tint.alpha);
-    }
-    image = sharp(tinted, { raw: { width: info.width, height: info.height, channels: 4 } });
+  const image = () => sharp(source.raster, { limitInputPixels: 50_000_000 }).rotate().ensureAlpha();
+  if (!hasColor) return image().resize(MASTER, MASTER, fit()).png().toBuffer();
+  // Tint: every pixel takes the color, keeping its own transparency.
+  const tint = parseColor(color);
+  const { data, info } = await image().raw().toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = tint.r; data[i + 1] = tint.g; data[i + 2] = tint.b; data[i + 3] = Math.round(data[i + 3] * tint.alpha);
   }
-  return image.resize(MASTER, MASTER, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: KERNEL }).png().toBuffer();
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).resize(MASTER, MASTER, fit()).png().toBuffer();
 }
 
-async function makeMaster(sourceBuf, opts) {
-  const { data, info } = await sharp(sourceBuf).trim({ threshold: 1 }).png().toBuffer({ resolveWithObject: true });
-  const glyph = sharp(data).resize(MASTER, MASTER, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: KERNEL });
-  const shape = opts.shape ?? (opts.bg && opts.bg !== 'transparent' ? 'rounded' : 'none');
-  if (!['none', 'square', 'rounded', 'circle'].includes(shape)) throw new Error(`unsupported shape: ${shape}`);
-  const hasBg = opts.bg && opts.bg !== 'transparent';
-  const padding = opts.padding === undefined ? (shape !== 'none' ? 0.2 : 0.08) : Number(opts.padding);
-  if (!Number.isFinite(padding) || padding < 0 || padding >= 0.5) throw new Error('padding must be in [0, 0.5)');
+async function glyph(ref, color) {
+  const key = `${await sourceKey(ref)}|${color ?? ''}`;
+  if (glyphCache.has(key)) { const hit = glyphCache.get(key); glyphCache.delete(key); glyphCache.set(key, hit); return hit; }
+  const png = await sourcePng(await loadSource(ref), color);
+  const trimmed = await sharp(png).trim({ threshold: 1 }).png().toBuffer().catch(() => png);   // fully transparent: keep as is
+  glyphCache.set(key, trimmed);
+  if (glyphCache.size > GLYPH_CACHE_MAX) glyphCache.delete(glyphCache.keys().next().value);
+  return trimmed;
+}
+
+// ---------- master: background shape + optional shadow + glyph on a 1024 canvas ----------
+function squirclePath(size) {
+  // Superellipse (n = 5), close to the continuous-corner shape of iOS/macOS icons.
+  const r = size / 2, pts = [];
+  for (let i = 0; i < 128; i++) {
+    const t = (i / 128) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t);
+    pts.push(`${(r + r * Math.sign(c) * Math.abs(c) ** 0.4).toFixed(1)},${(r + r * Math.sign(s) * Math.abs(s) ** 0.4).toFixed(1)}`);
+  }
+  return `M${pts.join('L')}Z`;
+}
+
+/** SVG for a background shape (or null for none), sized `size`. */
+export function shapeSvg(shape, bg, radius = 0.22, size = MASTER) {
+  if (shape === 'none' || !bg || bg === 'transparent') return null;
+  const { fill, defs } = parsePaint(bg);
+  const r = Math.max(0, Math.min(0.5, Number(radius))) * size;
+  const el = shape === 'circle' ? `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="${fill}"/>`
+    : shape === 'squircle' ? `<path d="${squirclePath(size)}" fill="${fill}"/>`
+    : `<rect width="${size}" height="${size}" rx="${shape === 'rounded' ? r : 0}" fill="${fill}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><defs>${defs}</defs>${el}</svg>`;
+}
+
+function checkStyle(o) {
+  const shape = o.shape ?? (o.bg && o.bg !== 'transparent' ? 'rounded' : 'none');
+  if (!SHAPES.includes(shape)) throw new Error(`shape must be one of ${SHAPES.join(', ')}`);
+  const padding = o.padding === undefined ? (shape !== 'none' ? 0.2 : 0.08) : Number(o.padding);
+  if (!Number.isFinite(padding) || padding < 0 || padding >= 0.5) throw new Error('padding must be a fraction from 0 to 0.45');
+  const radius = Number(o.radius ?? 0.22);
+  if (!Number.isFinite(radius)) throw new Error('radius must be a fraction from 0 to 0.5');
+  return { shape, padding, radius };
+}
+
+/** Render the styled 1024 px master PNG in memory. o: source + style options. */
+export async function renderMaster(o) {
+  if (!o?.source) throw new Error('source is required');
+  const { shape, padding, radius } = checkStyle(o);
+  const g = await glyph(o.source, o.color);
   const inner = Math.max(1, Math.round(MASTER * (1 - 2 * padding)));
-  const glyphPng = await glyph.resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: KERNEL }).png().toBuffer();
-  const { width, height } = await sharp(glyphPng).metadata();
-  const glyphLeft = Math.round((MASTER - width) / 2);
-  const glyphTop = Math.round((MASTER - height) / 2);
-  const composites = [{ input: glyphPng, left: glyphLeft, top: glyphTop }];
-  if (shape !== 'none' && hasBg) {
-    const radius = Math.max(0, Math.min(0.5, Number(opts.radius ?? 0.22))) * MASTER;
-    if (!Number.isFinite(radius)) throw new Error('radius must be a fraction between 0 and 0.5');
-    const fill = safeColor(opts.bg);
-    let shapeElement = '';
-    if (shape === 'circle') shapeElement = `<circle cx="512" cy="512" r="512" fill="${fill}"/>`;
-    else if (shape === 'rounded') shapeElement = `<rect width="1024" height="1024" rx="${radius}" fill="${fill}"/>`;
-    else shapeElement = `<rect width="1024" height="1024" fill="${fill}"/>`;
-    composites.unshift({ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">${shapeElement}</svg>`), left: 0, top: 0 });
+  const art = await sharp(g).resize(inner, inner, fit()).png().toBuffer();
+  const { width, height } = await sharp(art).metadata();
+  const left = Math.round((MASTER - width) / 2), top = Math.round((MASTER - height) / 2);
+  const layers = [];
+  const bgSvg = shapeSvg(shape, o.bg, radius);
+  if (bgSvg) layers.push({ input: Buffer.from(bgSvg), left: 0, top: 0 });
+  if (o.shadow) {
+    // A soft shadow under the artwork: its silhouette, darkened, blurred and nudged down.
+    const flat = await sharp({ create: { width: MASTER, height: MASTER, channels: 4, background: CLEAR } })
+      .composite([{ input: art, left, top }]).png().toBuffer();
+    // One sharp step per call: sharp reorders operations within a single pipeline.
+    const dark = await sharp(flat).linear([0, 0, 0, 0.45], [0, 0, 0, 0]).png().toBuffer();
+    const soft = await sharp(dark).blur(14).png().toBuffer();
+    const moved = await sharp(soft).extend({ top: 14, background: CLEAR }).png().toBuffer();
+    layers.push({ input: await sharp(moved).extract({ left: 0, top: 0, width: MASTER, height: MASTER }).png().toBuffer(), left: 0, top: 0 });
   }
-  return sharp({ create: { width: MASTER, height: MASTER, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite(composites).png().toBuffer();
+  layers.push({ input: art, left, top });
+  return sharp({ create: { width: MASTER, height: MASTER, channels: 4, background: CLEAR } }).composite(layers).png().toBuffer();
 }
 
-async function previewPng(master) {
-  const tileW = 120, tileH = 80;
-  const dark = { r: 31, g: 31, b: 31, alpha: 1 }, light = { r: 243, g: 243, b: 243, alpha: 1 };
-  const composites = [];
-  for (const [tile, color] of [[0, dark], [1, light]]) {
-    composites.push({ input: { create: { width: tileW, height: tileH, channels: 4, background: color } }, left: tile * tileW, top: 0 });
-    for (const [size, x] of [[48, 16], [24, 78]]) {
-      const icon = await sharp(master).resize(size, size, { fit: 'contain', kernel: KERNEL }).png().toBuffer();
-      composites.push({ input: icon, left: tile * tileW + x, top: Math.round((tileH - size) / 2) });
+/** The quick look: the icon at 48 and 24 px on a dark and a light background (240x80). */
+export async function previewPng(master) {
+  const tileW = 120, tileH = 80, layers = [];
+  for (const [tile, bg] of [[0, '#1f1f1f'], [1, '#f3f3f3']]) {
+    layers.push({ input: { create: { width: tileW, height: tileH, channels: 4, background: bg } }, left: tile * tileW, top: 0 });
+    for (const [size, x] of [[48, 16], [24, 78]]) layers.push({ input: await resizePng(master, size), left: tile * tileW + x, top: Math.round((tileH - size) / 2) });
+  }
+  return sharp({ create: { width: tileW * 2, height: tileH, channels: 4, background: CLEAR } }).composite(layers).png().toBuffer();
+}
+
+/**
+ * Make icon files. o: source, style options, name, outDir, pngSize,
+ * formats (any of ico, png, icns, web, pngset; default ico + png), preview (default true).
+ * Returns { ico?, png?, icns?, web?, pngset?, preview? } with file paths.
+ */
+export async function makeIcon(o) {
+  if (!o?.source) throw new Error('source is required');
+  const formats = [...new Set(o.formats?.length ? o.formats : ['ico', 'png'])];
+  const unknown = formats.filter((f) => !FORMATS.includes(f));
+  if (unknown.length) throw new Error(`unknown format: ${unknown.join(', ')} (use ${FORMATS.join(', ')})`);
+  const name = safeName(o.name);
+  const outDir = path.resolve(o.outDir || defaultOutDir());
+  await ensureDir(outDir);
+  const master = await renderMaster(o);
+  const out = {};
+  if (formats.includes('ico')) {
+    out.ico = path.join(outDir, `${name}.ico`);
+    await atomicWrite(out.ico, await pngToIco(await Promise.all(ICO_SIZES.map((s) => resizePng(master, s)))));
+  }
+  if (formats.includes('png')) {
+    const size = o.pngSize === undefined ? 256 : Math.trunc(Number(o.pngSize));
+    if (!(size >= 16 && size <= MASTER)) throw new Error(`pngSize must be 16-${MASTER}`);
+    out.png = path.join(outDir, `${name}-${size}.png`);
+    await atomicWrite(out.png, size === MASTER ? master : await resizePng(master, size));
+  }
+  if (formats.some((f) => ['icns', 'web', 'pngset'].includes(f))) {
+    const fm = await import('./formats.mjs');
+    if (formats.includes('icns')) out.icns = await fm.writeIcns(master, path.join(outDir, `${name}.icns`));
+    if (formats.includes('pngset')) out.pngset = await fm.writePngSet(master, outDir, name);
+    if (formats.includes('web')) {
+      const bg = o.bg && !/gradient/i.test(o.bg) && o.bg !== 'transparent' ? o.bg : undefined;
+      out.web = (await fm.writeFaviconBundle(master, outDir, name, { maskableBg: bg })).dir;
     }
   }
-  return sharp({ create: { width: tileW * 2, height: tileH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite(composites).png().toBuffer();
-}
-
-export async function makeIcon(opts) {
-  if (!opts?.source) throw new Error('source is required');
-  const name = safeName(opts.name);
-  const outDir = path.resolve(opts.outDir || defaultOutDir());
-  await mkdir(outDir, { recursive: true });
-  const source = await loadSource(opts.source);
-  const base = await sourcePng(source, opts.color);
-  const master = await makeMaster(base, opts);
-  const pngSize = opts.pngSize === undefined ? 256 : Math.trunc(Number(opts.pngSize));
-  if (!(pngSize >= 16 && pngSize <= MASTER)) throw new Error(`pngSize must be 16-${MASTER}`);
-  const resize = (size) => sharp(master).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 }, kernel: KERNEL }).png().toBuffer();
-  const icoPngs = [];
-  for (const size of ICO_SIZES) icoPngs.push(await resize(size));
-  const pngPath = path.join(outDir, `${name}-${pngSize}.png`);
-  const pngs = [pngPath];
-  const ico = path.join(outDir, `${name}.ico`);
-  const preview = path.join(outDir, `${name}-preview.png`);
-  await atomicWrite(pngPath, pngSize === 256 ? icoPngs[0] : await resize(pngSize));
-  await atomicWrite(ico, await pngToIco(icoPngs));
-  await atomicWrite(preview, await previewPng(master));
-  return { ico, preview, pngs };
-}
-
-async function atomicWrite(target, data) {
-  const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${process.pid}.${randomUUID()}.tmp`);
-  try {
-    await writeFile(temporary, data, { flag: 'wx' });
-    await rename(temporary, target);
-  } catch (error) {
-    await rm(temporary, { force: true }).catch(() => {});
-    throw error;
+  if (o.preview !== false) {
+    out.preview = path.join(outDir, `${name}-preview.png`);
+    await atomicWrite(out.preview, await previewPng(master));
   }
+  return out;
 }
 
-export { defaultOutDir };
+// ---------- style strings: "color=white bg=#1DB954 shape=squircle shadow" ----------
+// One compact, copyable form for a look, shared by the MCP tools, the CLI and the studio.
+export const STYLE_HELP = 'Look, "key=value ...": color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none|square|rounded|squircle|circle, radius=0-0.5, padding=0-0.45, shadow';
+
+// Splits on spaces outside parentheses, so "bg=rgb(1, 2, 3)" stays one token.
+function styleTokens(text) {
+  const out = []; let depth = 0, cur = '';
+  for (const ch of text) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if (/\s/.test(ch) && depth === 0) { if (cur) out.push(cur); cur = ''; } else cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** Parse a style string into style options. Throws a clear error on unknown keys or bad values. */
+export function parseStyle(text) {
+  if (text == null || text === '') return {};
+  if (typeof text === 'object') return pickStyle(text);
+  const out = {};
+  for (const token of styleTokens(String(text).trim())) {
+    const eq = token.indexOf('=');
+    const key = (eq < 0 ? token : token.slice(0, eq)).toLowerCase(), value = eq < 0 ? '' : token.slice(eq + 1).replace(/^["']|["']$/g, '');
+    if (key === 'shadow') { out.shadow = !['false', 'no', 'off', '0'].includes(value.toLowerCase()); continue; }
+    if (!STYLE_KEYS.includes(key)) throw new Error(`unknown style key "${key}" (use ${STYLE_KEYS.join(', ')})`);
+    if (!value) throw new Error(`style key "${key}" needs a value, e.g. ${key}=${{ color: 'white', bg: '#1DB954', shape: 'squircle', radius: '0.22', padding: '0.2' }[key]}`);
+    if (key === 'radius' || key === 'padding') {
+      const n = Number(value);
+      if (!Number.isFinite(n)) throw new Error(`style ${key} must be a number, got "${value}"`);
+      out[key] = n;
+    } else if (key === 'shape') {
+      if (!SHAPES.includes(value)) throw new Error(`shape must be one of ${SHAPES.join(', ')}`);
+      out.shape = value;
+    } else {
+      if (key === 'color') parseColor(value);   // fail early with the color error
+      else parsePaint(value);
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+/** The style string for style options (the inverse of parseStyle). */
+export function formatStyle(o = {}) {
+  return STYLE_KEYS.filter((k) => o[k] !== undefined && o[k] !== null && o[k] !== false)
+    .map((k) => (k === 'shadow' ? 'shadow' : `${k}=${String(o[k]).replace(/\s+/g, '')}`)).join(' ');
+}

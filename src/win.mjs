@@ -32,7 +32,7 @@ const PS_ENV = (() => {
 // Longer than the script's own 120 s wait for another change to finish, plus a restart.
 const TIMEOUT_MS = 300_000;
 // After these, Explorer has restarted: start a fresh worker for the next call.
-const RESTARTS_EXPLORER = new Set(['pin', 'unpin', 'reorder', 'refresh', 'restore-pins']);
+const RESTARTS_EXPLORER = new Set(['pin', 'unpin', 'reorder', 'pins', 'refresh', 'restore-pins']);
 const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 function requireWindows(command) {
@@ -43,10 +43,11 @@ function requireWindows(command) {
 
 /** Options (camelCase) -> the script's parameters (PascalCase). Paths become absolute. */
 export function winParams({ app, query, icon, iconIndex, noRestart, restartCooldown, item, x, y, value, file,
-  by, corner, flow, autoArrange, snapToGrid, showIcons, position, maxWidth, monitor } = {}) {
+  by, corner, flow, autoArrange, snapToGrid, showIcons, position, maxWidth, monitor, pin, unpin, order, dryRun } = {}) {
   const p = {};
-  const apps = [].concat(app ?? []).filter(Boolean).map(String);
-  if (apps.length) p.App = apps;
+  const list = (v) => [].concat(v ?? []).filter(Boolean).map(String);
+  for (const [k, v] of [['App', app], ['Pin', pin], ['Unpin', unpin], ['Order', order]]) if (list(v).length) p[k] = list(v);
+  if (dryRun) p.DryRun = true;
   if (query) p.Query = String(query);
   if (icon) p.Icon = path.resolve(icon);
   if (iconIndex != null) p.IconIndex = Number(iconIndex);
@@ -166,7 +167,7 @@ export class WinWorker {
         if (err && this.#pending.delete(id)) { clearTimeout(timer); resolve({ ok: false, error: `iconwright Windows worker is not accepting requests: ${err.message}` }); }
       });
     });
-    if (RESTARTS_EXPLORER.has(command)) this.close();
+    if (RESTARTS_EXPLORER.has(command) && !options.dryRun) this.close();
     if (!reply.ok) throw new Error(reply.error);
     return reply.result;
   }

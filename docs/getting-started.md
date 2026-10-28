@@ -1,161 +1,106 @@
 # Getting started
 
-This guide takes about five minutes. By the end you'll have changed an app's taskbar icon, checked the result and undone it.
+iconwright lets you design icons by talking to an AI agent, and put them on your Windows taskbar and desktop. This page gets it installed and walks you through a first icon. It takes about five minutes.
 
-## 1. Install
+## What you need
 
-You need **Windows 10 or 11** and **[Node.js](https://nodejs.org) 20 or newer**. Check Node with `node --version`.
+- **Node.js 20 or newer.** Check with `node --version`; get it from [nodejs.org](https://nodejs.org).
+- **An agent that speaks MCP**: Claude Code, Codex, Cursor, VS Code or similar. You can also use the [command line](cli.md) or the [studio](studio.md) without one.
+- **Windows 10 or 11** for the taskbar and desktop features. Designing and exporting icons works on macOS and Linux too.
+
+## Install
 
 ### Claude Code
 
-In Claude Code, run:
+Run these two commands inside Claude Code:
 
 ```text
 /plugin marketplace add JayceeGupta/iconwright
 /plugin install iconwright@icon-playground
 ```
 
-Restart Claude Code if it asks. The plugin adds:
-
-- an **MCP server** with the iconwright tools, and
-- a **skill** that tells Claude how to use them well (preview first, batch Explorer restarts, offer undo).
+Restart Claude Code if it asks. You get the MCP tools, a skill that teaches Claude to use them well, and four slash commands: `/mcp__iconwright__design-icon`, `/mcp__iconwright__restyle-taskbar`, `/mcp__iconwright__tidy-desktop` and `/mcp__iconwright__undo-everything`.
 
 ### Codex
 
-Clone the repository, then register the MCP server:
-
 ```bash
 git clone https://github.com/JayceeGupta/iconwright
-codex mcp add iconwright -- node C:/path/to/iconwright/bin/iconwright-mcp.mjs
+cd iconwright && npm install
+codex mcp add iconwright -- node "$PWD/bin/iconwright-mcp.mjs"
 ```
 
-Codex asks for approval before each MCP tool call. In `codex exec` (non-interactive) mode there's no one to ask, so calls are blocked unless you pre-approve them. To pre-approve the read-only tools, add this to `~/.codex/config.toml`:
+Codex asks before each tool call. To let it run the read-only tools without asking, add them to `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.iconwright.tools.doctor]
+[mcp_servers.iconwright.tools.search_icons]
+approval_mode = "approve"
+
+[mcp_servers.iconwright.tools.design_icons]
+approval_mode = "approve"
+
+[mcp_servers.iconwright.tools.preview_icon]
 approval_mode = "approve"
 
 [mcp_servers.iconwright.tools.taskbar_status]
 approval_mode = "approve"
-
-[mcp_servers.iconwright.tools.capture]
-approval_mode = "approve"
 ```
 
-Only pre-approve tools that change your system (`apply_icon`, `pin_apps`, …) if you're comfortable with Codex running them without asking.
+### Any other MCP client
 
-### Other MCP clients
+Clone and install as above, then add a **stdio** server to your client's MCP settings:
 
-Point your client at this stdio command:
-
-```text
-node C:/path/to/iconwright/bin/iconwright-mcp.mjs
+```json
+{
+  "mcpServers": {
+    "iconwright": { "command": "node", "args": ["C:/path/to/iconwright/bin/iconwright-mcp.mjs"] }
+  }
+}
 ```
 
-### Command line only
+### Let your agent do it
 
-```bash
-git clone https://github.com/JayceeGupta/iconwright
-cd iconwright
-node bin/iconwright.mjs help
-```
+Copy the [setup prompt](agents.md#setup-prompt) and paste it to your agent. It installs iconwright, reads the usage guide and checks your PC.
 
-The first command you run installs the image library iconwright needs (`sharp`). That takes about 10 seconds once.
+## Your first icon
 
-## 2. Check your PC
+Ask your agent in plain words. For example:
 
-Ask your agent *"run the iconwright doctor"*, or run:
+> Design me a calm, minimal icon for a notes app. Show me a few options.
+
+A good agent will:
+
+1. **Search** for artwork and show you a numbered sheet of candidates.
+2. **Compare** a few of them in different styles, in one grid. You answer with a cell, like “B2”.
+3. **Preview** your pick on a taskbar, desktop and phone, so you can see it at real sizes.
+4. **Make the files** you need: `.ico` for Windows, `.icns` for macOS, a favicon set for a website.
+
+Each step is a single small image, so trying another color or shape is cheap. Say what to change (“warmer”, “less padding”, “try a circle”) and it redraws.
+
+Prefer to drag sliders yourself? Ask for the studio (“open this in the studio”), or open [iconwright studio](/studio/) in your browser.
+
+## Your first taskbar change (Windows)
+
+> Make all my taskbar icons white.
+
+The agent reads your pinned apps and restyles each app's own icon in one call. Open windows update right away; a few pinned icons only update after Explorer restarts, and the agent will offer to do that once at the end.
+
+To undo:
+
+> Put my original icons back.
+
+## Check your PC
+
+On Windows, ask the agent to run **doctor**, or run it yourself:
 
 ```bash
 node bin/iconwright.mjs doctor
 ```
 
-`"ok": true` means you're ready. If a check fails, its `detail` says why. The most common one is `pinPrefix`: iconwright needs **at least one app already pinned** to the taskbar before it can pin others. Pin any app by hand once and you're set.
+It checks your Windows and PowerShell versions, the pinned-apps format, your backups and any taskbar mods, and changes nothing.
 
-## 3. Change an icon
+## Next
 
-Find the app's exact name:
-
-```bash
-node bin/iconwright.mjs apps spotify
-```
-
-Make an icon and apply it in one step:
-
-```bash
-node bin/iconwright.mjs apply "Spotify" --source simple-icons:spotify --color white
-```
-
-With an agent, just say *"make my Spotify taskbar icon white"*.
-
-What happens:
-
-- iconwright downloads the Spotify logo from [Iconify](https://icon-sets.iconify.design), colors it white and saves it as `.ico` (plus a preview PNG) in `%LOCALAPPDATA%\iconwright\icons`.
-- It points the app's Start Menu shortcut and pinned shortcut at the new icon. It remembers the old icon first.
-- If Spotify is running, its taskbar button changes right away. Some older apps only show the change after Explorer restarts. When that's the case, the result includes a `hint`, and running `refresh` once applies it.
-
-### Several apps at once
-
-Give `apply` several apps. With `--source app`, each app's own icon is recolored, which is how "make all my taskbar icons white" works:
-
-```bash
-node bin/iconwright.mjs apply "Spotify" "Discord" "Steam" --source app --color white
-```
-
-Over MCP this is one `app_apply_icon` call, and the agent gets a single image comparing all the new icons.
-
-### Want to see it first?
-
-`make` creates the icon without applying it, and returns a preview image of the icon at 48 and 24 px on dark and light backgrounds:
-
-```bash
-node bin/iconwright.mjs make --source simple-icons:spotify --color "#1db954" --bg "#191414" --shape circle
-```
-
-Agents using MCP get the preview image directly, so they can show it to you or compare options.
-
-### Icon sources
-
-| Source | Example |
-|---|---|
-| Iconify name: 200,000+ icons, including brand logos | `mdi:music`, `simple-icons:discord`, `lucide:terminal` |
-| An image file | `C:/Pictures/logo.png`, `logo.svg`, `photo.webp` |
-| An existing `.ico` (recolor it) | `D:/Icons/old.ico` |
-| Raw SVG text | `<svg …>…</svg>` |
-
-Search Iconify with `search`, for example `node bin/iconwright.mjs search "music note"`.
-
-## 4. Check the result
-
-```bash
-node bin/iconwright.mjs capture taskbar
-```
-
-This saves a screenshot of the taskbar (to `%LOCALAPPDATA%\iconwright\captures\taskbar.png`). Over MCP the agent gets the image itself, so it can confirm its own work. `capture desktop` shows the desktop icons even when windows cover them.
-
-## 5. Undo
-
-```bash
-node bin/iconwright.mjs restore "Spotify"        # this app's original icon
-node bin/iconwright.mjs restore --all            # every icon iconwright changed
-node bin/iconwright.mjs restore-pins             # pinned apps as before the last pin/unpin/reorder
-```
-
-See [Safety and risks](safety.md) for everything iconwright changes and how to undo it.
-
-## More things to try
-
-```bash
-# Pin two apps in one Explorer restart, then move them to the front
-node bin/iconwright.mjs pin "Notepad" "Calculator"
-node bin/iconwright.mjs reorder "Notepad" "Calculator" --position 0
-
-# Desktop
-node bin/iconwright.mjs desktop save C:/Users/me/desktop-backup.json
-node bin/iconwright.mjs desktop arrange --corner top-right
-node bin/iconwright.mjs desktop size small
-node bin/iconwright.mjs desktop system recycle-bin --hide
-node bin/iconwright.mjs desktop apply "My Projects" --source mdi:folder-star --color "#f59e0b"
-```
-
-The full list is in [Commands](commands.md).
+- [Design icons](design.md): the design loop, style strings and export formats.
+- [Taskbar and apps](taskbar.md): restyling, pinning and reordering.
+- [Safety and risks](safety.md): what iconwright changes and how to undo it.
+- [For agents](agents.md): how an agent should drive iconwright.

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { makeIcon, defaultOutDir } from './render.mjs';
 import { makeSheet } from './sheet.mjs';
 
-const STYLE_KEYS = ['color', 'bg', 'shape', 'radius', 'padding'];
+import { STYLE_KEYS } from './render.mjs';
 const isFile = (s) => /\.(svg|png|jpe?g|webp|ico)$/i.test(s) && !s.trim().startsWith('<');
 
 // Windows caches icons by file path, so every distinct look needs its own file name. The tag

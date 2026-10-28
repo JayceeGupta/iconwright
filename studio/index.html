@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>iconwright studio</title>
+  <meta name="description" content="Design an icon, see it on a taskbar, desktop, dock and phone, and download it for Windows, macOS and the web.">
+  <link rel="icon" href="mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="./" aria-label="iconwright studio home"><img src="mark.svg" alt="" width="28" height="28"><span>iconwright <b>studio</b></span></a>
+    <label class="style-field">
+      <span class="sr">Style</span>
+      <input id="styleText" spellcheck="false" autocomplete="off" placeholder="color=white bg=#2D5BA6 shape=squircle">
+    </label>
+    <button id="copyAgent" class="btn">Copy for your agent</button>
+    <span id="mode" class="mode" hidden></span>
+  </header>
+
+  <main class="layout">
+    <!-- Where the artwork comes from -->
+    <section class="panel source" aria-labelledby="sourceTitle">
+      <h2 id="sourceTitle">Artwork</h2>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="search">Search</button>
+        <button role="tab" aria-selected="false" data-tab="paste">Paste SVG</button>
+        <button role="tab" aria-selected="false" data-tab="apps" hidden id="appsTab">My apps</button>
+      </div>
+      <div class="tab-body" data-body="search">
+        <form id="searchForm" class="search">
+          <input id="query" type="search" placeholder="Search 200,000 icons" aria-label="Search icons" autocomplete="off">
+          <button class="btn" type="submit">Search</button>
+        </form>
+        <p id="searchNote" class="note">Try “music”, “rocket” or a brand like “spotify”.</p>
+        <div id="results" class="results" role="listbox" aria-label="Search results"></div>
+        <button id="more" class="btn ghost wide" hidden>Show more</button>
+      </div>
+      <div class="tab-body" data-body="paste" hidden>
+        <textarea id="svgText" rows="10" spellcheck="false" placeholder="<svg …>…</svg>" aria-label="SVG code"></textarea>
+        <button id="useSvg" class="btn wide">Use this SVG</button>
+      </div>
+      <div class="tab-body" data-body="apps" hidden>
+        <p class="note">Your pinned taskbar apps. Pick one to restyle its own icon.</p>
+        <div id="apps" class="results apps"></div>
+      </div>
+    </section>
+
+    <!-- The icon, large and in context -->
+    <section class="stage" aria-label="Preview">
+      <div class="hero-preview">
+        <div id="canvas" class="canvas checker" data-bg="checker">
+          <img id="big" alt="Your icon at 256 pixels">
+          <p id="empty" class="empty">Pick an icon on the left to start.</p>
+        </div>
+        <div class="canvas-tools" role="group" aria-label="Preview background">
+          <button data-bg="checker" aria-pressed="true">Clear</button>
+          <button data-bg="dark" aria-pressed="false">Dark</button>
+          <button data-bg="light" aria-pressed="false">Light</button>
+        </div>
+        <div class="pinboard">
+          <div class="row">
+            <button id="variations" class="btn" title="Six new color and shape ideas for this artwork">Show 6 ideas</button>
+            <button id="pin" class="btn ghost" title="Keep this version to compare later">Keep this version</button>
+          </div>
+          <div class="variations" id="variationsBox" hidden>
+            <img id="variationsImg" alt="Six ideas; click one to use it">
+            <p class="note">Click an idea to use it. Each shows the icon large, then at 24 px on dark and light.</p>
+          </div>
+          <div id="pinned" class="pinned" aria-label="Kept versions"></div>
+        </div>
+      </div>
+      <div class="scenes">
+        <div class="scenes-head">
+          <h2>Where it lives</h2>
+          <input id="label" value="My App" aria-label="App name in the scenes" maxlength="40">
+          <select id="scale" aria-label="Display scaling"><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
+        </div>
+        <div id="sceneChips" class="chips" role="group" aria-label="Scenes"></div>
+        <div class="scene-img"><img id="scenesImg" alt="The icon on a taskbar, Start menu, desktop and more"></div>
+      </div>
+    </section>
+
+    <!-- The look, and getting it out -->
+    <section class="panel controls" aria-labelledby="lookTitle">
+      <h2 id="lookTitle">Look</h2>
+      <div class="field">
+        <span class="label">Artwork color</span>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="recolor"> Recolor</label>
+          <input type="color" id="color" value="#ffffff" aria-label="Artwork color">
+          <input id="colorText" class="mini" value="#ffffff" aria-label="Artwork color value">
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Background</span>
+        <div class="seg" role="radiogroup" aria-label="Background" id="bgMode">
+          <button role="radio" data-v="none" aria-checked="true">None</button>
+          <button role="radio" data-v="solid" aria-checked="false">Color</button>
+          <button role="radio" data-v="gradient" aria-checked="false">Gradient</button>
+        </div>
+        <div class="row" id="bgColors" hidden>
+          <input type="color" id="bg1" value="#2d5ba6" aria-label="Background color">
+          <input type="color" id="bg2" value="#7b3f92" aria-label="Second gradient color">
+          <input type="range" id="angle" min="0" max="360" step="15" value="135" aria-label="Gradient angle">
+        </div>
+      </div>
+      <div class="field" id="shapeField" hidden>
+        <span class="label">Shape</span>
+        <div class="seg shapes" role="radiogroup" aria-label="Shape" id="shape">
+          <button role="radio" data-v="square" aria-checked="false" title="Square"><i class="sh sq"></i></button>
+          <button role="radio" data-v="rounded" aria-checked="true" title="Rounded"><i class="sh rd"></i></button>
+          <button role="radio" data-v="squircle" aria-checked="false" title="Squircle"><i class="sh sc"></i></button>
+          <button role="radio" data-v="circle" aria-checked="false" title="Circle"><i class="sh ci"></i></button>
+        </div>
+      </div>
+      <label class="field" id="radiusField" hidden><span class="label">Corner radius <output id="radiusOut">0.22</output></span>
+        <input type="range" id="radius" min="0" max="0.5" step="0.01" value="0.22"></label>
+      <label class="field"><span class="label">Padding <output id="paddingOut">auto</output></span>
+        <input type="range" id="padding" min="0" max="0.45" step="0.01" value="0.08"></label>
+      <label class="check field"><input type="checkbox" id="shadow"> Soft shadow under the artwork</label>
+
+      <h2 class="export-title">Download</h2>
+      <label class="field"><span class="label">File name</span><input id="name" value="icon" maxlength="60"></label>
+      <div class="downloads">
+        <button class="btn" data-format="ico" title="Windows icon, 16 to 256 px">Windows .ico</button>
+        <button class="btn" data-format="png" title="256 px PNG">PNG</button>
+        <button class="btn" data-format="icns" title="macOS icon">macOS .icns</button>
+        <button class="btn" data-format="web" title="favicon.ico, Apple touch icon, PWA icons, manifest">Website icons</button>
+        <button class="btn ghost" data-format="pngset" title="16 to 1024 px">All PNG sizes</button>
+      </div>
+      <div id="applyBox" class="apply" hidden>
+        <h2>Put it on apps</h2>
+        <p class="note">Changes Start menu and taskbar shortcuts. Undo any time with <code>iconwright restore</code>.</p>
+        <div id="applyApps" class="apply-apps"></div>
+        <button id="apply" class="btn primary wide">Apply to selected apps</button>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <script type="module" src="studio.js"></script>
+</body>
+</html>
