@@ -13,22 +13,24 @@ There are two ways to use it:
 
 ## Working in the studio
 
-1. **Pick artwork** on the left: search, paste SVG code, or (local, Windows) pick one of your pinned apps to restyle its own icon.
-2. **Shape the look** on the right: recolor the artwork, add a solid or gradient background, choose a shape, and adjust corner radius, padding and shadow.
-3. **Check it in place** in the middle. Choose the scenes you care about, set the app name shown under the icon, and pick the display scaling to mimic (100%, 150% or 200%).
-4. **Explore**: “Show 6 ideas” renders six color and shape variations of the same artwork. Click one to use it. “Keep this version” saves the current design to compare later.
-5. **Download** a Windows `.ico`, a PNG, a macOS `.icns`, a website icon set, or PNGs at every size.
+On a computer the studio has three columns: artwork on the left, the icon and its scenes in the middle, and the look and downloads on the right. On a phone the icon stays pinned at the top and the sections are tabs at the bottom.
 
-## The style line
+1. **Pick artwork.** Search, paste SVG code, or (local, Windows) pick one of your pinned apps to restyle its own icon. The studio opens with a first result already picked.
+2. **Shape the look.** Recolor the artwork, add a solid or gradient background, choose a shape, and adjust corner radius, padding and shadow. **Reset** goes back to the plain artwork.
+3. **Check it in place.** Choose the scenes you care about, set the app name shown under the icon, and pick the display scaling to mimic (100%, 150% or 200%).
+4. **Explore.** **Ideas** renders six color and shape variations of the same artwork; click one to use it. **Keep** saves the current design so you can compare and go back.
+5. **Download** a Windows `.ico`, a macOS `.icns`, a website icon set, a PNG, or PNGs at every size.
 
-The bar at the top always shows the current look as a [style string](design.md#styles), such as `color=white bg=#2d5ba6 shape=squircle`. You can type in it too: press Enter and the controls follow.
+## The style code
+
+The **Style code** field under the look controls always shows the current look as a [style string](design.md#styles), such as `color=white bg=#2d5ba6 shape=squircle`. It's what agents and the command line use. You can type in it too: press Enter and the controls follow.
 
 ## Working with your agent
 
 The studio and your agent speak the same language:
 
 - **From the agent to you.** Ask your agent to open the studio. It opens with the agent's current design loaded (`open_studio`).
-- **From you to the agent.** “Copy for your agent” copies a line like this, ready to paste into the chat:
+- **From you to the agent.** **Copy for agent** (top right) copies a line like this, ready to paste into the chat:
 
   ```text
   Use iconwright with source "ph:rocket-launch-fill" and style "color=white bg=#2d5ba6 shape=squircle".

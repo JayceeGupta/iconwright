@@ -40,7 +40,7 @@ Each design tool returns one small image. Show it to the user and let them choos
 3. `preview_icon` shows the pick on real surfaces. Do this before applying anything; it catches icons that vanish on a light or dark taskbar.
 4. `make_icon` writes files; `app_apply_icon` puts the icon on Windows apps.
 
-When the user wants to fiddle by hand, call `open_studio` with the current source and style. The studio's “Copy for your agent” button gives them text to paste back to you.
+When the user wants to fiddle by hand, call `open_studio` with the current source and style. The studio's “Copy for agent” button gives them text to paste back to you.
 
 ### Styles are strings
 

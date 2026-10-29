@@ -1,49 +1,24 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>iconwright: design icons with your agent, see them where they live</title>
-<meta name="description" content="An MCP server, CLI and studio for designing icons with AI agents: search 200,000 icons, compare styles, mock them up on a taskbar, desktop and phone, export for Windows, macOS and the web, and restyle your Windows taskbar.">
-<link rel="icon" href="/favicon.ico" sizes="48x48">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="alternate" type="text/markdown" href="/index.md" title="This page as Markdown">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;650;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/site.css">
-<meta property="og:title" content="iconwright">
-<meta property="og:description" content="Design icons with your agent. See them where they live.">
-<meta property="og:image" content="{{site}}/og.png">
-</head>
-<body>
-<header class="wrap top">
-  <a class="brand" href="/"><img src="/icon.svg" alt="" width="30" height="30">iconwright</a>
-  <nav aria-label="Main">
-    <a href="/docs/getting-started">Docs</a>
-    <a href="/studio/">Studio</a>
-    <a href="/docs/agents">For agents</a>
-    <a href="/docs/safety">Safety</a>
-    <a href="{{repo}}">GitHub</a>
-  </nav>
-</header>
+{{head}}
+<body class="is-home">
+<a class="skip" href="#content">Skip to content</a>
+{{header}}
 
-<main>
-<section class="wrap hero">
-  <div>
+<main id="content">
+<section class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">MCP server · CLI · Studio</p>
     <h1>Icons that fit where they live.</h1>
     <p class="lede">Tell your agent what you want. iconwright finds the artwork, lays out options side by side, shows each one on a real taskbar, desktop and phone, then makes the files, or puts the icon straight onto your Windows taskbar.</p>
     <div class="actions">
-      <a class="btn primary" href="/docs/getting-started">Get started</a>
-      <a class="btn" href="/studio/">Try the studio</a>
+      <a class="btn primary lg" href="/docs/getting-started">Get started</a>
+      <a class="btn lg" href="/studio/">Open the studio</a>
     </div>
-    <p class="fine">An MCP server for Claude Code, Codex and other agents, plus a CLI and a web studio. Free and open source.</p>
+    <p class="fine">Works with Claude Code, Codex, Cursor and any MCP client. Design and export run on Windows, macOS and Linux. Free and open source.</p>
   </div>
   <div class="specimen" aria-label="One icon, pixel by pixel">
     <figure>
       <img class="zoom" src="/img/specimen.png" width="512" height="512" alt="The iconwright icon at 16 pixels, magnified so each pixel is visible">
-      <figcaption>The iconwright icon at 16 px, the size it has in a browser tab. At this size, every pixel is a decision.</figcaption>
+      <figcaption>The iconwright icon at 16 px, its size in a browser tab. At this size every pixel is a decision.</figcaption>
     </figure>
     <div class="strip" aria-hidden="true">
       <div class="sizes">{{sizes:dark}}</div>
@@ -53,39 +28,40 @@
 </section>
 
 <section class="section">
-  <div class="wrap">
+  <div class="section-in">
+    <p class="eyebrow">How it works</p>
     <h2>From an idea to an icon in four steps</h2>
-    <p class="intro">Each step is one small image, so iterating costs your agent almost nothing and costs you a glance. Nothing is saved until you pick.</p>
+    <p class="intro">Each step is one small image, so trying ideas costs your agent almost nothing and costs you a glance. Nothing is saved until you pick.</p>
     <ol class="steps">
       <li>
-        <div>
+        <div class="step-copy">
           <h3>Find artwork</h3>
-          <p>Search more than 200,000 open-source icons and brand logos. Results come back as one numbered sheet: say “number 7” instead of guessing from names.</p>
-          <p class="tool">Tool: <code>search_icons</code></p>
+          <p>Search more than 200,000 open-source icons and brand logos. Results come back as one numbered sheet, so you can say “number 7” instead of guessing from names.</p>
+          <p class="tool"><code>search_icons</code></p>
         </div>
         <figure>{{img:search}}<figcaption>“rocket”, as your agent sees it.</figcaption></figure>
       </li>
       <li>
-        <div>
+        <div class="step-copy">
           <h3>Compare looks</h3>
           <p>Rows are artwork, columns are styles: colors, backgrounds, gradients, shapes. Each cell shows the icon large and at 24 px on dark and light. Pick a cell like “B3”.</p>
-          <p class="tool">Tool: <code>design_icons</code></p>
+          <p class="tool"><code>design_icons</code></p>
         </div>
         <figure>{{img:grid}}<figcaption>Three rockets, four styles, one image.</figcaption></figure>
       </li>
       <li>
-        <div>
+        <div class="step-copy">
           <h3>See it in place</h3>
           <p>Mock the icon up on a Windows taskbar, Start menu, desktop, File Explorer, a browser tab, the macOS Dock, an iPhone and Android. On Windows, it sits between your own pinned apps.</p>
-          <p class="tool">Tool: <code>preview_icon</code></p>
+          <p class="tool"><code>preview_icon</code></p>
         </div>
         <figure>{{img:scenes}}<figcaption>Catch the icon that vanishes on a light taskbar before you apply it.</figcaption></figure>
       </li>
       <li>
-        <div>
+        <div class="step-copy">
           <h3>Ship it</h3>
-          <p>Get a Windows <code>.ico</code>, a macOS <code>.icns</code>, a complete favicon and web-app set, or PNGs at every size. On Windows, put it on any app's Start menu and taskbar shortcuts in the same breath.</p>
-          <p class="tool">Tools: <code>make_icon</code>, <code>app_apply_icon</code></p>
+          <p>Get a Windows <code>.ico</code>, a macOS <code>.icns</code>, a complete favicon and web-app set, or PNGs at every size. On Windows, put it on any app's Start menu and taskbar shortcuts in the same step.</p>
+          <p class="tool"><code>make_icon</code> <code>app_apply_icon</code></p>
         </div>
         <figure>{{img:formats}}<figcaption>One design, every format.</figcaption></figure>
       </li>
@@ -94,39 +70,41 @@
 </section>
 
 <section class="section">
-  <div class="wrap two">
+  <div class="section-in two">
     <div>
+      <p class="eyebrow">Windows</p>
       <h2>Your taskbar, restyled in one sentence</h2>
       <p class="intro">iconwright knows how Windows keeps pinned apps, so your agent can restyle every icon, pin, unpin and reorder apps, and tidy the desktop. Changes that need Explorer to restart are batched into one restart.</p>
-      <p>Read the <a href="/docs/taskbar">taskbar and apps guide</a> or the <a href="/docs/desktop">desktop guide</a>.</p>
+      <p class="links"><a href="/docs/taskbar">Taskbar and apps guide →</a> <a href="/docs/desktop">Desktop guide →</a></p>
     </div>
     <div class="chat" aria-label="An example conversation">
       <p class="you">Make all my taskbar icons white.</p>
       <p class="call">taskbar_status()</p>
-      <p class="call">app_apply_icon(apps: [13 pinned apps],
-  source: "app", style: "color=white")</p>
+      <p class="call">app_apply_icon(apps: [13 pinned apps], source: "app", style: "color=white")</p>
       <p class="agent">Done: 13 icons are now white, each from the app's own artwork. Want them back? Say “undo” and I'll restore the originals.</p>
     </div>
   </div>
 </section>
 
 <section class="section handoff" id="agents">
-  <div class="wrap two">
+  <div class="section-in two">
     <div>
+      <p class="eyebrow">Install</p>
       <h2>Hand this to your agent</h2>
-      <p class="intro">Paste this into Claude Code, Codex or any agent with a terminal. It installs iconwright, reads how to use it, and checks your PC.</p>
-      <p>Agents can also read <a href="/llms.txt">llms.txt</a> and every docs page as Markdown (add <code>.md</code> to the address).</p>
+      <p class="intro">Paste it into Claude Code, Codex or any agent with a terminal. It installs iconwright, reads how to use it, and checks your PC.</p>
+      <p>Agents can also read <a href="/llms.txt">llms.txt</a>, and every docs page as Markdown (add <code>.md</code> to its address).</p>
     </div>
     <pre><code>{{agentPrompt}}</code></pre>
   </div>
 </section>
 
 <section class="section">
-  <div class="wrap two">
+  <div class="section-in two">
     <div>
+      <p class="eyebrow">Safety</p>
       <h2>Safe to try</h2>
       <p class="intro">iconwright changes shortcuts and one registry value, the same things you'd change by hand. Everything it changes, it can put back.</p>
-      <p><a href="/docs/safety">Read about safety and the risks</a></p>
+      <p class="links"><a href="/docs/safety">Safety and risks →</a></p>
     </div>
     <ul class="facts">
       <li><b>Undo for everything</b>Original icons are recorded before the first change; the pinned-apps list is backed up before every change.</li>
@@ -138,8 +116,10 @@
 </section>
 
 <section class="section">
-  <div class="wrap">
+  <div class="section-in">
+    <p class="eyebrow">Compatibility</p>
     <h2>Where it runs</h2>
+    <div class="table-wrap">
     <table class="matrix">
       <thead><tr><th scope="col"></th><th scope="col">Design and export</th><th scope="col">Taskbar and desktop</th></tr></thead>
       <tbody>
@@ -148,24 +128,13 @@
         <tr><th scope="row">Agents</th><td colspan="2">Claude Code (plugin with a skill and slash commands), Codex, Cursor, VS Code and any client that speaks MCP</td></tr>
       </tbody>
     </table>
+    </div>
   </div>
 </section>
 </main>
 
-<footer>
-  <div class="wrap">
-    <span>iconwright {{version}}, MIT license</span>
-    <nav aria-label="Footer">
-      <a href="/docs/getting-started">Docs</a>
-      <a href="/studio/">Studio</a>
-      <a href="/docs/tools">MCP tools</a>
-      <a href="/llms.txt">llms.txt</a>
-      <a href="/docs/changelog">Changelog</a>
-      <a href="/docs/contributing">Test and contribute</a>
-      <a href="{{repo}}">GitHub</a>
-    </nav>
-  </div>
-</footer>
+{{footer}}
+{{search}}
 <script src="/site.js" defer></script>
 </body>
 </html>

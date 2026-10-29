@@ -153,7 +153,7 @@ export const TOOLS = [
   },
   {
     name: 'open_studio', group: 'Design', title: 'Open the studio',
-    description: 'Open iconwright studio (a visual icon editor) in the user\'s browser, preloaded with a source and style, to fine-tune by hand. Its "Copy for your agent" button gives the user the exact source and style to paste back.',
+    description: 'Open iconwright studio (a visual icon editor) in the user\'s browser, preloaded with a source and style, to fine-tune by hand. Its "Copy for agent" button gives the user the exact source and style to paste back.',
     input: {
       source: source.optional(), ...style,
       label: z.string().optional().describe('App name shown in the scenes'),

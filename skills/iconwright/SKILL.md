@@ -17,7 +17,7 @@ Run the rounds in order; each ends when the user has picked.
 4. **Check in place.** `preview_icon` with the pick and the scenes that matter (Windows: `taskbar`, `start`, `sizes`; web: `browser`; Apple: `dock`, `ios`). Done when the user confirms, or after you've fixed what the scenes revealed (an icon vanishing on light or dark is the usual one).
 5. **Deliver.** `make_icon` with the formats the user needs, or `app_apply_icon` to put it on Windows apps. Report the file paths or what changed, and how to undo it.
 
-When the user wants to adjust by hand, `open_studio` with the current source and style; they paste back what the studio's "Copy for your agent" button gives them.
+When the user wants to adjust by hand, `open_studio` with the current source and style; they paste back what the studio's "Copy for agent" button gives them.
 
 **Style strings** carry every look: `color=white bg=#2d5ba6 shape=squircle shadow`. Keys: `color`, `bg` (CSS color or `linear-gradient(135deg,#a,#b)`), `shape` (`none` `square` `rounded` `squircle` `circle`), `radius` (0 to 0.5), `padding` (0 to 0.45), `shadow`. Quote them back to the user so they can reuse them.
 

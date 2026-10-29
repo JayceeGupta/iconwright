@@ -45,7 +45,7 @@ temporary folder; change nothing else on this computer.
    Check that exactly these tools are listed: search_icons, design_icons, preview_icon,
    make_icon, open_studio. Call each of the first four once and look at the images.
 4. Studio. Run `node bin/iconwright.mjs studio --no-open`, open the printed link, search,
-   pick an icon, change color and shape, click "Show 6 ideas", download a .ico and the
+   pick an icon, change color and shape, click "Ideas", download a .ico and the
    website icons. Note anything broken or confusing. Stop it with Ctrl+C afterwards.
    If you can't use a browser, skip this step and say so in the report.
 5. Write the report as iconwright-report.md using the template at

@@ -2,47 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>iconwright studio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f8fa">
+  <title>Studio | iconwright</title>
   <meta name="description" content="Design an icon, see it on a taskbar, desktop, dock and phone, and download it for Windows, macOS and the web.">
   <link rel="icon" href="mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="studio.css">
 </head>
 <body>
   <header class="bar">
-    <a class="brand" href="./" aria-label="iconwright studio home"><img src="mark.svg" alt="" width="28" height="28"><span>iconwright <b>studio</b></span></a>
-    <label class="style-field">
-      <span class="sr">Style</span>
-      <input id="styleText" spellcheck="false" autocomplete="off" placeholder="color=white bg=#2D5BA6 shape=squircle">
-    </label>
-    <button id="copyAgent" class="btn">Copy for your agent</button>
+    <a class="brand" href="/" aria-label="iconwright home"><img src="mark.svg" alt="" width="26" height="26"><span>iconwright</span><b>Studio</b></a>
     <span id="mode" class="mode" hidden></span>
+    <div class="bar-actions">
+      <a class="btn ghost hide-sm" href="/docs/studio">Help</a>
+      <button id="copyAgent" class="btn" type="button" title="Copy the icon and style as a message for your agent">
+        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M7 3h8a2 2 0 0 1 2 2v8M5 7h8v10H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <span>Copy for agent</span>
+      </button>
+    </div>
   </header>
 
-  <main class="layout">
+  <main class="layout" id="layout" data-view="artwork">
     <!-- Where the artwork comes from -->
-    <section class="panel source" aria-labelledby="sourceTitle">
-      <h2 id="sourceTitle">Artwork</h2>
-      <div class="tabs" role="tablist">
-        <button role="tab" aria-selected="true" data-tab="search">Search</button>
-        <button role="tab" aria-selected="false" data-tab="paste">Paste SVG</button>
-        <button role="tab" aria-selected="false" data-tab="apps" hidden id="appsTab">My apps</button>
+    <section class="panel source" data-pane="artwork" aria-labelledby="sourceTitle">
+      <div class="panel-head">
+        <h2 id="sourceTitle">Artwork</h2>
+        <div class="tabs seg" role="tablist" aria-label="Artwork source">
+          <button type="button" role="tab" aria-selected="true" data-tab="search">Search</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="paste">SVG</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="apps" hidden id="appsTab">My apps</button>
+        </div>
       </div>
       <div class="tab-body" data-body="search">
-        <form id="searchForm" class="search">
-          <input id="query" type="search" placeholder="Search 200,000 icons" aria-label="Search icons" autocomplete="off">
-          <button class="btn" type="submit">Search</button>
+        <form id="searchForm" class="search" role="search">
+          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <input id="query" type="search" enterkeyhint="search" placeholder="Search 200,000 icons" aria-label="Search icons" autocomplete="off">
         </form>
-        <p id="searchNote" class="note">Try “music”, “rocket” or a brand like “spotify”.</p>
+        <div class="suggest" id="suggest" aria-label="Suggestions">
+          <button type="button">music</button><button type="button">rocket</button><button type="button">terminal</button><button type="button">camera</button><button type="button">spotify</button><button type="button">github</button>
+        </div>
         <div id="results" class="results" role="listbox" aria-label="Search results"></div>
-        <button id="more" class="btn ghost wide" hidden>Show more</button>
+        <p id="searchNote" class="note"></p>
+        <button id="more" class="btn ghost wide" type="button" hidden>Show more</button>
       </div>
       <div class="tab-body" data-body="paste" hidden>
-        <textarea id="svgText" rows="10" spellcheck="false" placeholder="<svg …>…</svg>" aria-label="SVG code"></textarea>
-        <button id="useSvg" class="btn wide">Use this SVG</button>
+        <textarea id="svgText" rows="9" spellcheck="false" placeholder="<svg …>…</svg>" aria-label="SVG code"></textarea>
+        <button id="useSvg" class="btn wide" type="button">Use this SVG</button>
       </div>
       <div class="tab-body" data-body="apps" hidden>
         <p class="note">Your pinned taskbar apps. Pick one to restyle its own icon.</p>
@@ -50,58 +58,66 @@
       </div>
     </section>
 
-    <!-- The icon, large and in context -->
-    <section class="stage" aria-label="Preview">
-      <div class="hero-preview">
-        <div id="canvas" class="canvas checker" data-bg="checker">
-          <img id="big" alt="Your icon at 256 pixels">
-          <p id="empty" class="empty">Pick an icon on the left to start.</p>
-        </div>
-        <div class="canvas-tools" role="group" aria-label="Preview background">
-          <button data-bg="checker" aria-pressed="true">Clear</button>
-          <button data-bg="dark" aria-pressed="false">Dark</button>
-          <button data-bg="light" aria-pressed="false">Light</button>
-        </div>
-        <div class="pinboard">
-          <div class="row">
-            <button id="variations" class="btn" title="Six new color and shape ideas for this artwork">Show 6 ideas</button>
-            <button id="pin" class="btn ghost" title="Keep this version to compare later">Keep this version</button>
-          </div>
-          <div class="variations" id="variationsBox" hidden>
-            <img id="variationsImg" alt="Six ideas; click one to use it">
-            <p class="note">Click an idea to use it. Each shows the icon large, then at 24 px on dark and light.</p>
-          </div>
-          <div id="pinned" class="pinned" aria-label="Kept versions"></div>
-        </div>
+    <div class="center">
+    <!-- The icon, always in view -->
+    <section class="preview" aria-label="Preview">
+      <div id="canvas" class="canvas checker" data-bg="checker">
+        <img id="big" alt="Your icon at 256 pixels">
+        <p id="empty" class="empty">Loading an icon…</p>
       </div>
-      <div class="scenes">
-        <div class="scenes-head">
-          <h2>Where it lives</h2>
-          <input id="label" value="My App" aria-label="App name in the scenes" maxlength="40">
-          <select id="scale" aria-label="Display scaling"><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
+      <div class="preview-side">
+        <div class="canvas-tools seg" role="group" aria-label="Preview background">
+          <button type="button" data-bg="checker" aria-pressed="true">Clear</button>
+          <button type="button" data-bg="dark" aria-pressed="false">Dark</button>
+          <button type="button" data-bg="light" aria-pressed="false">Light</button>
         </div>
-        <div id="sceneChips" class="chips" role="group" aria-label="Scenes"></div>
-        <div class="scene-img"><img id="scenesImg" alt="The icon on a taskbar, Start menu, desktop and more"></div>
+        <div class="row wrap">
+          <button id="variations" class="btn" type="button" title="Six color and shape ideas for this artwork">
+            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M10 2l1.8 4.6L16.5 8l-4.7 1.4L10 14l-1.8-4.6L3.5 8l4.7-1.4zM15.5 13l.8 2 2 .7-2 .7-.8 2-.8-2-2-.7 2-.7z" fill="currentColor"/></svg>
+            Ideas
+          </button>
+          <button id="pin" class="btn ghost" type="button" title="Keep this version to compare later">Keep</button>
+        </div>
+        <div id="pinned" class="pinned" aria-label="Kept versions"></div>
+      </div>
+      <div class="variations" id="variationsBox" hidden>
+        <div class="variations-head"><span>Tap an idea to use it</span><button id="closeIdeas" class="link" type="button">Close</button></div>
+        <img id="variationsImg" alt="Six ideas; click one to use it">
       </div>
     </section>
 
-    <!-- The look, and getting it out -->
-    <section class="panel controls" aria-labelledby="lookTitle">
-      <h2 id="lookTitle">Look</h2>
+    <!-- Where it lives -->
+    <section class="panel scenes" data-pane="scenes" aria-labelledby="scenesTitle">
+      <div class="panel-head">
+        <h2 id="scenesTitle">Where it lives</h2>
+        <div class="row">
+          <input id="label" value="My App" aria-label="App name in the scenes" maxlength="40">
+          <select id="scale" aria-label="Display scaling"><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
+        </div>
+      </div>
+      <div id="sceneChips" class="chips" role="group" aria-label="Scenes"></div>
+      <div class="scene-img"><img id="scenesImg" alt="The icon on a taskbar, Start menu, desktop and more"></div>
+    </section>
+    </div>
+
+    <div class="rail">
+    <!-- The look -->
+    <section class="panel controls" data-pane="look" aria-labelledby="lookTitle">
+      <div class="panel-head"><h2 id="lookTitle">Look</h2><button id="reset" class="link" type="button">Reset</button></div>
       <div class="field">
         <span class="label">Artwork color</span>
         <div class="row">
-          <label class="check"><input type="checkbox" id="recolor"> Recolor</label>
+          <label class="switch"><input type="checkbox" id="recolor"><span>Recolor</span></label>
           <input type="color" id="color" value="#ffffff" aria-label="Artwork color">
-          <input id="colorText" class="mini" value="#ffffff" aria-label="Artwork color value">
+          <input id="colorText" class="mini" value="#ffffff" aria-label="Artwork color value" spellcheck="false">
         </div>
       </div>
       <div class="field">
         <span class="label">Background</span>
-        <div class="seg" role="radiogroup" aria-label="Background" id="bgMode">
-          <button role="radio" data-v="none" aria-checked="true">None</button>
-          <button role="radio" data-v="solid" aria-checked="false">Color</button>
-          <button role="radio" data-v="gradient" aria-checked="false">Gradient</button>
+        <div class="seg full" role="radiogroup" aria-label="Background" id="bgMode">
+          <button type="button" role="radio" data-v="none" aria-checked="true">None</button>
+          <button type="button" role="radio" data-v="solid" aria-checked="false">Color</button>
+          <button type="button" role="radio" data-v="gradient" aria-checked="false">Gradient</button>
         </div>
         <div class="row" id="bgColors" hidden>
           <input type="color" id="bg1" value="#2d5ba6" aria-label="Background color">
@@ -111,37 +127,52 @@
       </div>
       <div class="field" id="shapeField" hidden>
         <span class="label">Shape</span>
-        <div class="seg shapes" role="radiogroup" aria-label="Shape" id="shape">
-          <button role="radio" data-v="square" aria-checked="false" title="Square"><i class="sh sq"></i></button>
-          <button role="radio" data-v="rounded" aria-checked="true" title="Rounded"><i class="sh rd"></i></button>
-          <button role="radio" data-v="squircle" aria-checked="false" title="Squircle"><i class="sh sc"></i></button>
-          <button role="radio" data-v="circle" aria-checked="false" title="Circle"><i class="sh ci"></i></button>
+        <div class="seg full shapes" role="radiogroup" aria-label="Shape" id="shape">
+          <button type="button" role="radio" data-v="square" aria-checked="false" title="Square"><i class="sh sq"></i><span>Square</span></button>
+          <button type="button" role="radio" data-v="rounded" aria-checked="true" title="Rounded"><i class="sh rd"></i><span>Rounded</span></button>
+          <button type="button" role="radio" data-v="squircle" aria-checked="false" title="Squircle"><i class="sh sc"></i><span>Squircle</span></button>
+          <button type="button" role="radio" data-v="circle" aria-checked="false" title="Circle"><i class="sh ci"></i><span>Circle</span></button>
         </div>
       </div>
       <label class="field" id="radiusField" hidden><span class="label">Corner radius <output id="radiusOut">0.22</output></span>
         <input type="range" id="radius" min="0" max="0.5" step="0.01" value="0.22"></label>
       <label class="field"><span class="label">Padding <output id="paddingOut">auto</output></span>
         <input type="range" id="padding" min="0" max="0.45" step="0.01" value="0.08"></label>
-      <label class="check field"><input type="checkbox" id="shadow"> Soft shadow under the artwork</label>
+      <label class="switch field"><input type="checkbox" id="shadow"><span>Soft shadow under the artwork</span></label>
+      <label class="field code-field">
+        <span class="label">Style code <span class="hint">what agents and the CLI use</span></span>
+        <input id="styleText" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="color=white bg=#2d5ba6 shape=squircle">
+      </label>
+    </section>
 
-      <h2 class="export-title">Download</h2>
-      <label class="field"><span class="label">File name</span><input id="name" value="icon" maxlength="60"></label>
+    <!-- Getting it out -->
+    <section class="panel export" data-pane="download" aria-labelledby="exportTitle">
+      <div class="panel-head"><h2 id="exportTitle">Download</h2></div>
+      <label class="field"><span class="label">File name</span><input id="name" value="icon" maxlength="60" spellcheck="false"></label>
       <div class="downloads">
-        <button class="btn" data-format="ico" title="Windows icon, 16 to 256 px">Windows .ico</button>
-        <button class="btn" data-format="png" title="256 px PNG">PNG</button>
-        <button class="btn" data-format="icns" title="macOS icon">macOS .icns</button>
-        <button class="btn" data-format="web" title="favicon.ico, Apple touch icon, PWA icons, manifest">Website icons</button>
-        <button class="btn ghost" data-format="pngset" title="16 to 1024 px">All PNG sizes</button>
+        <button class="dl" type="button" data-format="ico"><b>Windows</b><span>.ico, 16–256 px</span></button>
+        <button class="dl" type="button" data-format="icns"><b>macOS</b><span>.icns, 16–1024 px</span></button>
+        <button class="dl" type="button" data-format="web"><b>Website</b><span>favicon, touch and PWA icons</span></button>
+        <button class="dl" type="button" data-format="png"><b>PNG</b><span>256 px</span></button>
+        <button class="dl" type="button" data-format="pngset"><b>All sizes</b><span>PNGs, 16–1024 px</span></button>
       </div>
       <div id="applyBox" class="apply" hidden>
         <h2>Put it on apps</h2>
         <p class="note">Changes Start menu and taskbar shortcuts. Undo any time with <code>iconwright restore</code>.</p>
         <div id="applyApps" class="apply-apps"></div>
-        <button id="apply" class="btn primary wide">Apply to selected apps</button>
+        <button id="apply" class="btn primary wide" type="button">Apply to selected apps</button>
       </div>
-      <p id="status" class="status" role="status" aria-live="polite"></p>
     </section>
+    </div>
   </main>
+
+  <nav class="tabbar" aria-label="Studio sections">
+    <button type="button" data-view="artwork" aria-current="true"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Artwork</button>
+    <button type="button" data-view="look"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="4" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="10" cy="10" r="3" fill="currentColor"/></svg>Look</button>
+    <button type="button" data-view="scenes"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 17h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Scenes</button>
+    <button type="button" data-view="download"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9m-4-4 4 4 4-4M4 16h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Download</button>
+  </nav>
+  <p id="status" class="toast" role="status" aria-live="polite"></p>
   <script type="module" src="studio.js"></script>
 </body>
 </html>

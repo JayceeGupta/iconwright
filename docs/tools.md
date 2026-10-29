@@ -68,7 +68,7 @@ Writes files only.
 
 ### `open_studio`
 
-Open iconwright studio (a visual icon editor) in the user's browser, preloaded with a source and style, to fine-tune by hand. Its "Copy for your agent" button gives the user the exact source and style to paste back.
+Open iconwright studio (a visual icon editor) in the user's browser, preloaded with a source and style, to fine-tune by hand. Its "Copy for agent" button gives the user the exact source and style to paste back.
 
 Read-only.
 

@@ -1,4 +1,4 @@
-﻿# How it works
+# How it works
 
 This page explains how iconwright does each thing, in plain terms. For byte-level details, see [Windows internals](windows-internals.md).
 

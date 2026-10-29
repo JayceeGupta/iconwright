@@ -118,7 +118,13 @@ function setImg(img, blob) {
   const url = URL.createObjectURL(blob);
   objectUrls.set(img, url); img.src = url;
 }
-function status(msg = '', error = false) { $('status').textContent = msg; $('status').classList.toggle('error', error); }
+let toastTimer = 0;
+function status(msg = '', error = false) {
+  const t = $('status');
+  clearTimeout(toastTimer);
+  t.textContent = msg; t.classList.toggle('error', error); t.classList.toggle('show', !!msg);
+  if (msg) toastTimer = setTimeout(() => t.classList.remove('show'), error ? 6000 : 3000);
+}
 
 function changed({ now = false } = {}) {
   syncControls(); saveHash();
@@ -137,7 +143,7 @@ async function render() {
     const scenes = api('scenes', { source: state.source, style, scenes: [...state.scenes], label: state.label, scale: state.scale }, { as: 'blob', signal });
     setImg($('big'), await big);
     setImg($('scenesImg'), await scenes);
-    $('styleText').classList.remove('bad'); status('');
+    $('styleText').classList.remove('bad');
   } catch (e) {
     if (e.name === 'AbortError') return;
     status(e.message, true);
@@ -152,6 +158,7 @@ async function search(query, more = false) {
   const seq = ++searchSeq, start = more ? searchStart : 0;   // a newer search makes older answers stale
   if (!more) $('results').replaceChildren();
   lastQuery = query; $('searchNote').textContent = 'Searching…'; $('more').disabled = true;
+  const first = !more && !state.source;
   try {
     const r = await api('search', { q: query, limit: 48, start });
     if (seq !== searchSeq) return;
@@ -167,6 +174,7 @@ async function search(query, more = false) {
     const licenses = [...new Set(Object.values(r.collections).map((c) => c.license).filter(Boolean))];
     $('searchNote').textContent = r.icons.length || more ? `Showing ${searchStart}${licenses.length ? `. Licenses: ${licenses.join(', ')}` : ''}.` : 'Nothing found. Try a simpler word.';
     $('more').hidden = searchStart >= r.total;
+    if (first && r.icons.length) pickSource(r.icons[0], $('results').firstElementChild);
   } catch (e) { if (seq === searchSeq) $('searchNote').textContent = e.message; }
   finally { if (seq === searchSeq) $('more').disabled = false; }
 }
@@ -245,6 +253,7 @@ async function variations() {
 // ---------- download, save, apply ----------
 async function download(format) {
   if (!state.source) return status('Pick an icon first.', true);
+  for (const b of document.querySelectorAll('[data-format]')) b.disabled = true;
   status('Making files…');
   try {
     const blob = await api('download', { source: state.source, style: styleString(), name: $('name').value || 'icon', format }, { as: 'blob' });
@@ -254,6 +263,7 @@ async function download(format) {
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     status('Downloaded.');
   } catch (e) { status(e.message, true); }
+  finally { for (const b of document.querySelectorAll('[data-format]')) b.disabled = false; }
 }
 
 async function applyToApps() {
@@ -291,8 +301,8 @@ async function copyForAgent() {
   let text = `Use iconwright with source ${src}${st ? ` and style "${st}"` : ''}.`;
   if (isRaw(state.source)) text += `\n\n${state.source}`;
   else text += `\nCLI: iconwright make ${state.source}${st ? ` --style "${st}"` : ''}`;
-  await navigator.clipboard.writeText(text);
-  status('Copied. Paste it to your agent.');
+  try { await navigator.clipboard.writeText(text); status('Copied. Paste it to your agent.'); }
+  catch { status('Copying is blocked in this browser. Use the style code in Look instead.', true); }
 }
 
 // ---------- wiring ----------
@@ -321,7 +331,17 @@ async function init() {
     for (const o of document.querySelectorAll('.tabs button')) o.setAttribute('aria-selected', String(o === t));
     for (const body of document.querySelectorAll('.tab-body')) body.hidden = body.dataset.body !== t.dataset.tab;
   };
-  $('searchForm').onsubmit = (e) => { e.preventDefault(); search($('query').value.trim()); };
+  let typeTimer = 0;
+  $('searchForm').onsubmit = (e) => { e.preventDefault(); clearTimeout(typeTimer); search($('query').value.trim()); $('query').blur(); };
+  $('query').oninput = () => { clearTimeout(typeTimer); const q = $('query').value.trim(); if (q.length > 1) typeTimer = setTimeout(() => search(q), 400); };
+  for (const b of $('suggest').children) b.onclick = () => { $('query').value = b.textContent; search(b.textContent); };
+  for (const b of document.querySelectorAll('.tabbar button')) b.onclick = () => {
+    $('layout').dataset.view = b.dataset.view;
+    for (const o of document.querySelectorAll('.tabbar button')) o.setAttribute('aria-current', String(o === b));
+    window.scrollTo({ top: 0 });
+  };
+  $('reset').onclick = () => { applyStyleString(''); changed({ now: true }); };
+  $('closeIdeas').onclick = () => { $('variationsBox').hidden = true; };
   $('more').onclick = () => search(lastQuery, true);
   $('useSvg').onclick = () => { const s = $('svgText').value.trim(); if (!s.startsWith('<')) return status('That doesn\'t look like SVG code.', true); pickSource(s); };
 
@@ -363,7 +383,9 @@ async function init() {
 
   loadHash();
   syncControls(); drawKept();
+  const related = /^[\w-]+:[\w-]+$/.test(state.source) ? state.source.split(':')[1].split('-')[0] : '';
+  if (related) { $('query').value = related; search(related); }
   if (state.source) render();
-  else { $('query').value = 'music'; search('music'); }
+  else { $('empty').textContent = 'Pick an icon to start.'; $('query').value = 'rocket'; search('rocket'); }
 }
 init();

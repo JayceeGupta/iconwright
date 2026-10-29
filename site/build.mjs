@@ -38,7 +38,7 @@ const DOCS = NAV.flatMap(([, items]) => items);
 const AGENT_PROMPT = /## Setup prompt[\s\S]*?```text\r?\n([\s\S]*?)\r?\n```/.exec(await readFile(path.join(root, 'docs', 'agents.md'), 'utf8'))[1];
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const slug = (t) => t.toLowerCase().replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+const slug = (t) => t.toLowerCase().replace(/<[^>]+>/g, '').replace(/&#?\w+;/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
 
 // ---------- generated Markdown ----------
 function schemaType(p) {
@@ -100,7 +100,8 @@ function markdown(toc) {
     renderer: {
       heading({ tokens, depth }) {
         const html = this.parser.parseInline(tokens), id = slug(html);
-        if (depth === 2) toc.push([id, html.replace(/<[^>]+>/g, '')]);
+        if (depth === 1) return '';
+        if (depth === 2 || depth === 3) toc.push([id, html.replace(/<[^>]+>/g, ''), depth]);
         const anchor = depth > 1 && depth < 4 ? `<a class="anchor" href="#${id}" aria-label="Link to this section">#</a>` : '';
         return `<h${depth} id="${id}">${html}${anchor}</h${depth}>\n`;
       },
@@ -109,56 +110,140 @@ function markdown(toc) {
   return md;
 }
 
+const ICON = {
+  search: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  menu: '<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  github: '<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>',
+  theme: '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  copy: '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M7 3h8a2 2 0 0 1 2 2v8M5 7h8v10H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+  chevron: '<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+
 const head = (title, description, mdPath) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)} | iconwright</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16181b" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="alternate" type="text/markdown" href="${mdPath}" title="This page as Markdown">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="${esc(description)}">
+<meta property="og:image" content="${SITE}/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;650;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/site.css">
 </head>`;
 
+// The header every page shares. `active` is 'docs', 'agents' or ''.
+const siteHeader = (active, { menu = false } = {}) => `<header class="top">
+  <div class="top-in">
+    ${menu ? `<button class="icon-btn menu-btn" type="button" aria-controls="side" aria-expanded="false" aria-label="Open the docs menu">${ICON.menu}</button>` : ''}
+    <a class="brand" href="/"><img src="/icon.svg" alt="" width="26" height="26">iconwright</a>
+    <nav class="main-nav" aria-label="Main">
+      <a href="/docs/getting-started"${active === 'docs' ? ' aria-current="page"' : ''}>Docs</a>
+      <a href="/studio/">Studio</a>
+      <a href="/docs/agents"${active === 'agents' ? ' aria-current="page"' : ''}>For agents</a>
+    </nav>
+    <button class="search-btn" type="button" data-search aria-label="Search the docs">${ICON.search}<span>Search docs</span><kbd>Ctrl K</kbd></button>
+    <button class="icon-btn" type="button" data-theme-toggle aria-label="Switch between light and dark">${ICON.theme}</button>
+    <a class="icon-btn hide-sm" href="${REPO}" aria-label="iconwright on GitHub">${ICON.github}</a>
+  </div>
+</header>`;
+
+const searchDialog = `<dialog class="search" id="search" aria-label="Search the docs">
+  <form method="dialog" class="search-box">${ICON.search}<input id="q" type="search" placeholder="Search the docs" autocomplete="off" enterkeyhint="go" aria-label="Search the docs" aria-controls="hits"><button class="esc" value="close" aria-label="Close search">Esc</button></form>
+  <ul id="hits" class="hits" role="listbox" aria-label="Results"></ul>
+  <p class="search-foot"><span class="hide-sm"><kbd>↑</kbd><kbd>↓</kbd> to move, <kbd>Enter</kbd> to open</span><a href="/llms-full.txt">All docs in one file</a></p>
+</dialog>`;
+
+const siteFooter = () => `<footer class="foot">
+  <div class="foot-in">
+    <a class="brand small" href="/"><img src="/icon.svg" alt="" width="20" height="20">iconwright</a>
+    <nav aria-label="Footer">
+      <a href="/docs/getting-started">Docs</a><a href="/studio/">Studio</a><a href="/docs/tools">MCP tools</a><a href="/docs/changelog">Changelog</a><a href="/docs/contributing">Test and contribute</a><a href="/llms.txt">llms.txt</a><a href="${REPO}">GitHub</a>
+    </nav>
+    <span class="fine">Version ${version}. MIT license.</span>
+  </div>
+</footer>`;
+
 function docPage({ name, title, description, body, toc }) {
-  const side = NAV.map(([group, items]) => `<h2>${group}</h2>\n${items.map(([n, label]) => `<a href="/docs/${n}"${n === name ? ' aria-current="page"' : ''}>${label}</a>`).join('\n')}`).join('\n');
-  const tocHtml = toc.length > 1 ? `<h2>On this page</h2>\n${toc.map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('\n')}` : '';
-  return `${head(title, description, `/docs/${name}.md`)}
-<body>
-<header class="wrap top">
-  <a class="brand" href="/"><img src="/icon.svg" alt="" width="30" height="30">iconwright</a>
-  <nav aria-label="Main">
-    <a href="/docs/getting-started" aria-current="page">Docs</a>
-    <a href="/studio/">Studio</a>
-    <a href="/docs/agents">For agents</a>
-    <a href="${REPO}">GitHub</a>
-  </nav>
-</header>
-<div class="wrap docs">
-  <nav class="side" aria-label="Docs">
+  const group = NAV.find(([, items]) => items.some(([n]) => n === name))?.[0] ?? 'Docs';
+  const i = DOCS.findIndex(([n]) => n === name);
+  const prev = DOCS[i - 1], next = DOCS[i + 1];
+  const side = NAV.map(([g, items]) => `<div class="side-group"><h2>${g}</h2>\n${items.map(([n, label]) => `<a href="/docs/${n}"${n === name ? ' aria-current="page"' : ''}>${label}</a>`).join('\n')}</div>`).join('\n');
+  const tocLinks = toc.map(([id, t, depth]) => `<a href="#${id}"${depth === 3 ? ' class="sub"' : ''}>${esc(t)}</a>`).join('\n');
+  const tocHtml = toc.length > 1 ? `<p class="toc-title">On this page</p>\n${tocLinks}` : '';
+  const mobileToc = toc.length > 1 ? `<details class="toc-mobile"><summary>On this page ${ICON.chevron}</summary><nav aria-label="On this page">${tocLinks}</nav></details>` : '';
+  const q = encodeURIComponent(`Read ${SITE}/docs/${name}.md so I can ask you questions about it.`);
+  return `${head(`${title} | iconwright docs`, description, `/docs/${name}.md`)}
+<body class="is-docs">
+<a class="skip" href="#content">Skip to content</a>
+${siteHeader(name === 'agents' ? 'agents' : 'docs', { menu: true })}
+<div class="docs">
+  <aside class="side" id="side" aria-label="Docs">
+    <nav>
 ${side}
-  </nav>
-  <main class="prose">
-    <div class="page-tools">
-      <button class="btn" data-copy-md="/docs/${name}.md">Copy page as Markdown</button>
-      <a class="btn" href="/docs/${name}.md">View Markdown</a>
+    </nav>
+  </aside>
+  <div class="scrim" data-close-menu hidden></div>
+  <main class="prose" id="content">
+    <div class="page-head">
+      <p class="crumbs">${group}</p>
+      <h1>${title}</h1>
+      <div class="page-actions">
+        <button class="btn sm" type="button" data-copy-md="/docs/${name}.md">${ICON.copy}<span>Copy page</span></button>
+        <details class="more"><summary class="btn sm" aria-label="More ways to read this page">${ICON.chevron}</summary>
+          <div class="menu">
+            <a href="/docs/${name}.md"><b>View as Markdown</b><span>Plain text, for agents</span></a>
+            <a href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener"><b>Open in Claude</b><span>Ask questions about this page</span></a>
+            <a href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener"><b>Open in ChatGPT</b><span>Ask questions about this page</span></a>
+          </div>
+        </details>
+      </div>
     </div>
+    ${mobileToc}
+    <div class="body">
 ${body}
+    </div>
+    <nav class="pager" aria-label="Previous and next page">
+      ${prev ? `<a class="prev" href="/docs/${prev[0]}"><span>Previous</span>${prev[1]}</a>` : '<span></span>'}
+      ${next ? `<a class="next" href="/docs/${next[0]}"><span>Next</span>${next[1]}</a>` : '<span></span>'}
+    </nav>
+    <p class="edit"><a href="${REPO}/blob/main/${name === 'changelog' ? 'CHANGELOG.md' : `docs/${name}.md`}">Edit this page on GitHub</a></p>
   </main>
   <nav class="toc" aria-label="On this page">
 ${tocHtml}
   </nav>
 </div>
-<footer><div class="wrap"><span>iconwright ${version}, MIT license</span><nav aria-label="Footer"><a href="/llms.txt">llms.txt</a><a href="${REPO}/blob/main/docs/${name}.md">Edit this page on GitHub</a></nav></div></footer>
+${siteFooter()}
+${searchDialog}
 <script src="/site.js" defer></script>
 </body>
 </html>
 `;
+}
+
+// Turns "> **Note:** ..." blockquotes into styled callouts.
+const callouts = (html) => html.replace(/<blockquote>\s*<p><strong>(Note|Tip|Important|Warning|Caution):?<\/strong>:?\s*/g,
+  (_, kind) => `<blockquote class="callout ${kind.toLowerCase()}"><p><strong class="callout-title">${kind}</strong>`);
+
+// Search index: one entry per h2/h3 section of every page.
+function searchEntries(name, title, html) {
+  const strip = (h) => h.replace(/<pre[\s\S]*?<\/pre>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+  return html.split(/(?=<h[23] id=")/).map((part) => {
+    const m = /^<h[23] id="([^"]+)">([\s\S]*?)<a class="anchor"/.exec(part);
+    const rest = m ? part.slice(part.indexOf('</h') + 5) : part;
+    return { p: title, h: m ? strip(m[2]) : '', u: `/docs/${name}${m ? `#${m[1]}` : ''}`, x: strip(rest).slice(0, 360) };
+  }).filter((e) => e.h || e.x);
 }
 
 // ---------- images, rendered by iconwright ----------
@@ -273,23 +358,27 @@ const changelog = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
 await writeFile(path.join(dist, 'docs', 'changelog.md'), changelog);
 
 const pages = new Map();
+const searchIndex = [];
 for (const [name] of DOCS) {
   const file = name === 'changelog' ? path.join(root, 'CHANGELOG.md') : path.join(root, 'docs', `${name}.md`);
   let source;
-  try { source = await readFile(file, 'utf8'); } catch { console.warn(`missing doc: ${name}`); continue; }
+  try { source = (await readFile(file, 'utf8')).replace(/^\uFEFF/, ''); } catch { console.warn(`missing doc: ${name}`); continue; }
   const title = (/^#\s+(.+)$/m.exec(source)?.[1] ?? name).replace(/[`*]/g, '');
   const firstPara = source.replace(/<!--[\s\S]*?-->/g, '').split(/\n\s*\n/).find((p) => p.trim() && !p.startsWith('#')) ?? '';
   const description = firstPara.replace(/[`*_]|\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 200);
   pages.set(name, { title, description, source });
   const toc = [];
-  const body = markdown(toc).parse(source.replace(/\{\{agentPrompt\}\}/g, AGENT_PROMPT));
+  const body = callouts(markdown(toc).parse(source.replace(/\{\{agentPrompt\}\}/g, AGENT_PROMPT)));
+  searchIndex.push(...searchEntries(name, title, body));
   await writeFile(path.join(dist, 'docs', `${name}.html`), docPage({ name, title, description, body, toc }));
   await writeFile(path.join(dist, 'docs', `${name}.md`), source.replace(/\{\{agentPrompt\}\}/g, AGENT_PROMPT));
 }
 await writeFile(path.join(dist, 'docs', 'index.html'), '<!doctype html><meta http-equiv="refresh" content="0; url=/docs/getting-started"><link rel="canonical" href="/docs/getting-started">');
 
 let home = await readFile(path.join(here, 'src', 'home.html'), 'utf8');
-home = home.replaceAll('{{repo}}', REPO).replaceAll('{{site}}', SITE).replaceAll('{{version}}', version)
+home = home.replace('{{header}}', siteHeader('')).replace('{{footer}}', siteFooter()).replace('{{search}}', searchDialog)
+  .replace('{{head}}', head('iconwright: design icons with your agent', 'An MCP server, CLI and studio for designing icons with AI agents: search 200,000 icons, compare styles, see them on a taskbar, desktop and phone, export for Windows, macOS and the web, and restyle your Windows taskbar.', '/index.md'))
+  .replaceAll('{{repo}}', REPO).replaceAll('{{site}}', SITE).replaceAll('{{version}}', version)
   .replace('{{agentPrompt}}', esc(AGENT_PROMPT))
   .replace('{{sizes:dark}}', sizesHtml('dark')).replace('{{sizes:light}}', sizesHtml('light'))
   .replace('{{img:formats}}', FORMATS_HTML)
@@ -297,6 +386,7 @@ home = home.replaceAll('{{repo}}', REPO).replaceAll('{{site}}', SITE).replaceAll
 await writeFile(path.join(dist, 'index.html'), home);
 await writeFile(path.join(dist, 'index.md'), HOME_MD);
 
+await writeFile(path.join(dist, 'search.json'), JSON.stringify(searchIndex));
 await writeFile(path.join(dist, 'llms.txt'), llmsTxt(pages));
 await writeFile(path.join(dist, 'llms-full.txt'), [HOME_MD, ...[...pages.values()].map((p) => p.source.replace(/\{\{agentPrompt\}\}/g, AGENT_PROMPT))].join('\n\n---\n\n'));
 await writeFile(path.join(dist, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE}/sitemap.xml\n`);
