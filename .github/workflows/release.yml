@@ -1,0 +1,64 @@
+# Publishes to npm when a version tag is pushed (git tag v1.2.3 && git push origin v1.2.3).
+# Uses npm trusted publishing: GitHub proves who is publishing with a short-lived OIDC token,
+# so no npm token is stored anywhere, and npm attaches provenance linking the package to this
+# workflow run and commit. Configure it once on npmjs.com (package settings -> Trusted publisher):
+# GitHub Actions, owner JayceeGupta, repository iconwright, workflow release.yml, environment npm.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: write   # create the GitHub release
+      id-token: write   # npm trusted publishing (OIDC)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Tag matches the package and plugin versions
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg=$(node -p "require('./package.json').version")
+          plugin=$(node -p "require('./.claude-plugin/plugin.json').version")
+          echo "tag $tag, package.json $pkg, plugin.json $plugin"
+          [ "$tag" = "$pkg" ] && [ "$tag" = "$plugin" ] || { echo "::error::Tag v$tag must match package.json and plugin.json"; exit 1; }
+          grep -q "^## $tag " CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $tag' entry"; exit 1; }
+
+      - name: npm supports trusted publishing
+        run: |
+          v=$(npm --version)
+          node -e "const [a,b,c]=process.argv[1].split('.').map(Number); process.exit(a>11||(a===11&&(b>5||(b===5&&c>=1)))?0:1)" "$v" \
+            || { echo "::error::npm $v is too old for trusted publishing (needs 11.5.1+)"; exit 1; }
+
+      - run: npm ci
+      - run: npm publish --access public
+
+      - name: GitHub release from the changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          awk -v t="## $tag " 'index($0,t)==1{on=1;next} on&&/^## /{exit} on' CHANGELOG.md > notes.md
+          printf '\nInstall: `npx -y iconwright mcp`. See https://iconwright.guptajayam.com/docs/getting-started\n' >> notes.md
+          gh release create "$GITHUB_REF_NAME" --title "iconwright $tag" --notes-file notes.md --verify-tag

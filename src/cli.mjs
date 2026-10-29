@@ -6,6 +6,9 @@ import { makeSheet } from './sheet.mjs';
 import { parseArgs } from './args.mjs';
 import { writeFile } from 'node:fs/promises';
 import { toJson } from './output.mjs';
+import { createRequire } from 'node:module';
+
+const { version } = createRequire(import.meta.url)('../package.json');
 
 export const commands = new Map();
 export function register(name, handler, usage = '') { commands.set(name, { handler, usage }); }
@@ -134,14 +137,14 @@ Checks (Windows)
   capture [taskbar|desktop|screen]
 
 Testing (any OS)
-  report                     Environment and self-test, safe to paste into a test report
   report                     Environment and self-test, safe to share in a test report
 
 Sources: an Iconify id (mdi:music), an image file, raw <svg>, or app:<App name>.
 Styles: --style "color=white bg=#2d5ba6 shape=squircle shadow", or --color, --bg, --shape,
---radius, --padding, --shadow. Details: iconwright <command> --help`;
+--radius, --padding, --shadow. Details: iconwright <command> --help. Version: iconwright --version`;
 export async function run(argv = process.argv) {
   try { const args = argv.slice(2), command = args.shift(); if (!command || ['help','--help','-h'].includes(command)) { console.log(help()); return 0; }
+    if (['version','--version','-v'].includes(command)) { console.log(version); return 0; }
     const entry = commands.get(command); if (!entry) throw new Error(`unknown command: ${command}`);
     const result = await entry.handler(args); if (result) console.log(result); return 0;
   } catch (error) { console.error((error.message || String(error)).split(/\r?\n/, 1)[0]); return 1; }

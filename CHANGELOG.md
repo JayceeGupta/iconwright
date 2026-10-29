@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 (2026-10-30)
+
+- `iconwright --version` (or `-v`) prints the version, and `help` no longer lists `report` twice.
+- Releases are published from GitHub Actions with npm trusted publishing, so each version on npm carries provenance that links it to the commit it was built from.
+
 ## 0.3.0 (2026-10-30)
 
 The first release on npm: `npx -y iconwright mcp` starts the MCP server, and `npx -y iconwright <command>` runs the command line.
