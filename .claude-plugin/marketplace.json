@@ -1,12 +1,12 @@
 {
   "name": "icon-playground",
   "owner": { "name": "Jayam Gupta" },
-  "metadata": { "description": "Icon Playground: design icons with your agent, and customize the Windows taskbar and desktop." },
+  "metadata": { "description": "Icon Playground: restyle the Windows taskbar and desktop with your agent, and design custom icons." },
   "plugins": [
     {
       "name": "iconwright",
       "source": "./",
-      "description": "Design icons with your agent and see them where they live: search 200,000+ icons, compare styles, preview on a taskbar, desktop and phone, export .ico, .icns and favicons, and restyle, pin and arrange the Windows taskbar and desktop."
+      "description": "An MCP server that restyles your Windows taskbar and desktop: change any app's icon, pin, unpin and reorder taskbar apps, and arrange desktop icons, with undo for everything. It also designs custom icons from 200,000+ open-source icons, previews them on a real taskbar, desktop and phone, and exports .ico, .icns and favicons."
     }
   ]
 }

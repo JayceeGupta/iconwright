@@ -1,5 +1,6 @@
 // The icon engine: source -> styled 1024 px master -> .ico, PNGs and other formats.
-// renderMaster() works in memory (for previews, design grids and scenes); makeIcon() writes files.
+// The look itself is defined once, in shared/icon.mjs (an SVG recipe the studio also draws in the
+// browser); this file loads artwork, measures it, and rasterizes the recipe with sharp.
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -7,18 +8,19 @@ import { readFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import pngToIco from 'png-to-ico';
 import { loadSource } from './source.mjs';
-import { parseColor, parsePaint, recolorSvg } from './color.mjs';
+import { parseColor } from './shared/color.mjs';
+import { composeIconSvg, svgViewBox, alphaBox, nestSvg, GRID } from './shared/icon.mjs';
+import { SHAPES, STYLE_KEYS, STYLE_HELP, pickStyle, parseStyle, formatStyle, normalizeStyle } from './shared/style.mjs';
 import { atomicWrite, ensureDir } from './fsutil.mjs';
 
-export { parseColor };
+export { parseColor, SHAPES, STYLE_KEYS, STYLE_HELP, pickStyle, parseStyle, formatStyle };
 // 20 and 40 px keep icons crisp at 125% and 250% display scaling.
 export const ICO_SIZES = [256, 128, 64, 48, 40, 32, 24, 20, 16];
-export const SHAPES = ['none', 'square', 'rounded', 'squircle', 'circle'];
-export const STYLE_KEYS = ['color', 'bg', 'shape', 'radius', 'padding', 'shadow'];
 export const FORMATS = ['ico', 'png', 'icns', 'web', 'pngset'];
-const MASTER = 1024;
+const MASTER = GRID;
 const KERNEL = 'lanczos3';
 const CLEAR = { r: 0, g: 0, b: 0, alpha: 0 };
+const MEASURE = 512;   // artwork is measured at this size to find its visible box
 
 export function defaultOutDir() {
   return process.platform === 'win32'
@@ -31,18 +33,12 @@ export function safeName(name) {
   return clean || 'icon';
 }
 
-/** Only the style options that change the look (drops undefined). */
-export function pickStyle(o = {}) {
-  return Object.fromEntries(STYLE_KEYS.filter((k) => o[k] !== undefined && o[k] !== null).map((k) => [k, o[k]]));
-}
+const fit = () => ({ fit: 'contain', background: CLEAR, kernel: KERNEL });
+export const resizePng = (png, size) => sharp(png).resize(size, size, fit()).png().toBuffer();
 
-const fit = (size) => ({ fit: 'contain', background: CLEAR, kernel: KERNEL });
-export const resizePng = (png, size) => sharp(png).resize(size, size, fit(size)).png().toBuffer();
-
-// ---------- glyph: the source artwork, recolored and trimmed to its visible pixels ----------
-// Design loops render the same source in many styles; cache the expensive part.
-const glyphCache = new Map();
-const GLYPH_CACHE_MAX = 64;
+// ---------- artwork: loaded and measured once per source ----------
+const artCache = new Map();
+const ART_CACHE_MAX = 64;
 
 async function sourceKey(ref) {
   const value = String(ref).trim();
@@ -53,90 +49,48 @@ async function sourceKey(ref) {
   return data ? 'file:' + createHash('sha1').update(data).digest('hex') : `missing:${path.resolve(value)}`;
 }
 
-async function sourcePng(source, color) {
-  const hasColor = color !== undefined && color !== null;
-  if (source.svg !== undefined) {
-    const svg = hasColor ? recolorSvg(source.svg, color) : source.svg;
-    return sharp(Buffer.from(svg), { density: 2400 }).resize(MASTER, MASTER, fit()).png().toBuffer();
-  }
-  const image = () => sharp(source.raster, { limitInputPixels: 50_000_000 }).rotate().ensureAlpha();
-  if (!hasColor) return image().resize(MASTER, MASTER, fit()).png().toBuffer();
-  // Tint: every pixel takes the color, keeping its own transparency.
-  const tint = parseColor(color);
-  const { data, info } = await image().raw().toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = tint.r; data[i + 1] = tint.g; data[i + 2] = tint.b; data[i + 3] = Math.round(data[i + 3] * tint.alpha);
-  }
-  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).resize(MASTER, MASTER, fit()).png().toBuffer();
+/** Vector artwork: the SVG plus the box its visible pixels cover. */
+export async function measureSvg(svg) {
+  const view = svgViewBox(svg);
+  const k = MEASURE / Math.max(view[2], view[3]);
+  const w = Math.max(1, Math.round(view[2] * k)), h = Math.max(1, Math.round(view[3] * k));
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" color="#000">${nestSvg(svg, view, 0, 0, w, h)}</svg>`;
+  const { data, info } = await sharp(Buffer.from(doc)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return { svg, box: alphaBox(data, info.width, info.height, view, 4) };
 }
 
-async function glyph(ref, color) {
-  const key = `${await sourceKey(ref)}|${color ?? ''}`;
-  if (glyphCache.has(key)) { const hit = glyphCache.get(key); glyphCache.delete(key); glyphCache.set(key, hit); return hit; }
-  const png = await sourcePng(await loadSource(ref), color);
-  // Trim transparent margins only; artwork with an opaque background keeps it.
-  const trimmed = await sharp(png).trim({ background: '#00000000', threshold: 1 }).png().toBuffer().catch(() => png);
-  glyphCache.set(key, trimmed);
-  if (glyphCache.size > GLYPH_CACHE_MAX) glyphCache.delete(glyphCache.keys().next().value);
-  return trimmed;
+/** Raster artwork: a PNG data URL (at most 1024 px) plus the box of its visible pixels. */
+export async function measureRaster(raster) {
+  const png = await sharp(raster, { limitInputPixels: 50_000_000 }).rotate().ensureAlpha()
+    .resize(MASTER, MASTER, { fit: 'inside', withoutEnlargement: true, kernel: KERNEL }).png().toBuffer();
+  const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+  return { href: `data:image/png;base64,${png.toString('base64')}`, width: info.width, height: info.height,
+    box: alphaBox(data, info.width, info.height, [0, 0, info.width, info.height], 4) };
 }
 
-// ---------- master: background shape + optional shadow + glyph on a 1024 canvas ----------
-function squirclePath(size) {
-  // Superellipse (n = 5), close to the continuous-corner shape of iOS/macOS icons.
-  const r = size / 2, pts = [];
-  for (let i = 0; i < 128; i++) {
-    const t = (i / 128) * 2 * Math.PI, c = Math.cos(t), s = Math.sin(t);
-    pts.push(`${(r + r * Math.sign(c) * Math.abs(c) ** 0.4).toFixed(1)},${(r + r * Math.sign(s) * Math.abs(s) ** 0.4).toFixed(1)}`);
-  }
-  return `M${pts.join('L')}Z`;
+/** The measured artwork for a source reference (cached). */
+export async function artFor(ref) {
+  const key = await sourceKey(ref);
+  if (artCache.has(key)) { const hit = artCache.get(key); artCache.delete(key); artCache.set(key, hit); return hit; }
+  const src = await loadSource(ref);
+  const art = src.svg !== undefined ? await measureSvg(src.svg) : await measureRaster(src.raster);
+  artCache.set(key, art);
+  if (artCache.size > ART_CACHE_MAX) artCache.delete(artCache.keys().next().value);
+  return art;
 }
 
-/** SVG for a background shape (or null for none), sized `size`. */
-export function shapeSvg(shape, bg, radius = 0.22, size = MASTER) {
-  if (shape === 'none' || !bg || bg === 'transparent') return null;
-  const { fill, defs } = parsePaint(bg);
-  const r = Math.max(0, Math.min(0.5, Number(radius))) * size;
-  const el = shape === 'circle' ? `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="${fill}"/>`
-    : shape === 'squircle' ? `<path d="${squirclePath(size)}" fill="${fill}"/>`
-    : `<rect width="${size}" height="${size}" rx="${shape === 'rounded' ? r : 0}" fill="${fill}"/>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><defs>${defs}</defs>${el}</svg>`;
-}
-
-function checkStyle(o) {
-  const shape = o.shape ?? (o.bg && o.bg !== 'transparent' ? 'rounded' : 'none');
-  if (!SHAPES.includes(shape)) throw new Error(`shape must be one of ${SHAPES.join(', ')}`);
-  const padding = o.padding === undefined ? (shape !== 'none' ? 0.2 : 0.08) : Number(o.padding);
-  if (!Number.isFinite(padding) || padding < 0 || padding >= 0.5) throw new Error('padding must be a fraction from 0 to 0.45');
-  const radius = Number(o.radius ?? 0.22);
-  if (!Number.isFinite(radius)) throw new Error('radius must be a fraction from 0 to 0.5');
-  return { shape, padding, radius };
+/** The styled icon as an SVG document (what the studio shows). */
+export async function iconSvg(o) {
+  if (!o?.source) throw new Error('source is required');
+  return composeIconSvg(await artFor(o.source), o);
 }
 
 /** Render the styled 1024 px master PNG in memory. o: source + style options. */
 export async function renderMaster(o) {
   if (!o?.source) throw new Error('source is required');
-  const { shape, padding, radius } = checkStyle(o);
-  const g = await glyph(o.source, o.color);
-  const inner = Math.max(1, Math.round(MASTER * (1 - 2 * padding)));
-  const art = await sharp(g).resize(inner, inner, fit()).png().toBuffer();
-  const { width, height } = await sharp(art).metadata();
-  const left = Math.round((MASTER - width) / 2), top = Math.round((MASTER - height) / 2);
-  const layers = [];
-  const bgSvg = shapeSvg(shape, o.bg, radius);
-  if (bgSvg) layers.push({ input: Buffer.from(bgSvg), left: 0, top: 0 });
-  if (o.shadow) {
-    // A soft shadow under the artwork: its silhouette, darkened, blurred and nudged down.
-    const flat = await sharp({ create: { width: MASTER, height: MASTER, channels: 4, background: CLEAR } })
-      .composite([{ input: art, left, top }]).png().toBuffer();
-    // One sharp step per call: sharp reorders operations within a single pipeline.
-    const dark = await sharp(flat).linear([0, 0, 0, 0.45], [0, 0, 0, 0]).png().toBuffer();
-    const soft = await sharp(dark).blur(14).png().toBuffer();
-    const moved = await sharp(soft).extend({ top: 14, background: CLEAR }).png().toBuffer();
-    layers.push({ input: await sharp(moved).extract({ left: 0, top: 0, width: MASTER, height: MASTER }).png().toBuffer(), left: 0, top: 0 });
-  }
-  layers.push({ input: art, left, top });
-  return sharp({ create: { width: MASTER, height: MASTER, channels: 4, background: CLEAR } }).composite(layers).png().toBuffer();
+  normalizeStyle(o);   // range errors before any work
+  const svg = composeIconSvg(await artFor(o.source), o);
+  return sharp(Buffer.from(svg)).resize(MASTER, MASTER).png().toBuffer();
 }
 
 /** A plate color that contrasts with the icon: dark behind light artwork, white otherwise. */
@@ -168,7 +122,7 @@ export async function previewPng(master) {
 export async function makeIcon(o) {
   if (!o?.source) throw new Error('source is required');
   const formats = [...new Set(o.formats?.length ? o.formats : ['ico', 'png'])];
-  const unknown = formats.filter((f) => !FORMATS.includes(f));
+  const unknown = formats.filter((x) => !FORMATS.includes(x));
   if (unknown.length) throw new Error(`unknown format: ${unknown.join(', ')} (use ${FORMATS.join(', ')})`);
   const name = safeName(o.name);
   const outDir = path.resolve(o.outDir || defaultOutDir());
@@ -185,7 +139,7 @@ export async function makeIcon(o) {
     out.png = path.join(outDir, `${name}-${size}.png`);
     await atomicWrite(out.png, size === MASTER ? master : await resizePng(master, size));
   }
-  if (formats.some((f) => ['icns', 'web', 'pngset'].includes(f))) {
+  if (formats.some((x) => ['icns', 'web', 'pngset'].includes(x))) {
     const fm = await import('./formats.mjs');
     if (formats.includes('icns')) out.icns = await fm.writeIcns(master, path.join(outDir, `${name}.icns`));
     if (formats.includes('pngset')) out.pngset = await fm.writePngSet(master, outDir, name);
@@ -203,53 +157,4 @@ export async function makeIcon(o) {
     await atomicWrite(out.preview, await previewPng(master));
   }
   return out;
-}
-
-// ---------- style strings: "color=white bg=#1DB954 shape=squircle shadow" ----------
-// One compact, copyable form for a look, shared by the MCP tools, the CLI and the studio.
-export const STYLE_HELP = 'Look, "key=value ...": color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none|square|rounded|squircle|circle, radius=0-0.5, padding=0-0.45, shadow';
-
-// Splits on spaces outside parentheses, so "bg=rgb(1, 2, 3)" stays one token.
-function styleTokens(text) {
-  const out = []; let depth = 0, cur = '';
-  for (const ch of text) {
-    if (ch === '(') depth++;
-    if (ch === ')') depth = Math.max(0, depth - 1);
-    if (/\s/.test(ch) && depth === 0) { if (cur) out.push(cur); cur = ''; } else cur += ch;
-  }
-  if (cur) out.push(cur);
-  return out;
-}
-
-/** Parse a style string into style options. Throws a clear error on unknown keys or bad values. */
-export function parseStyle(text) {
-  if (text == null || text === '') return {};
-  if (typeof text === 'object') return pickStyle(text);
-  const out = {};
-  for (const token of styleTokens(String(text).trim())) {
-    const eq = token.indexOf('=');
-    const key = (eq < 0 ? token : token.slice(0, eq)).toLowerCase(), value = eq < 0 ? '' : token.slice(eq + 1).replace(/^["']|["']$/g, '');
-    if (key === 'shadow') { out.shadow = !['false', 'no', 'off', '0'].includes(value.toLowerCase()); continue; }
-    if (!STYLE_KEYS.includes(key)) throw new Error(`unknown style key "${key}" (use ${STYLE_KEYS.join(', ')})`);
-    if (!value) throw new Error(`style key "${key}" needs a value, e.g. ${key}=${{ color: 'white', bg: '#1DB954', shape: 'squircle', radius: '0.22', padding: '0.2' }[key]}`);
-    if (key === 'radius' || key === 'padding') {
-      const n = Number(value);
-      if (!Number.isFinite(n)) throw new Error(`style ${key} must be a number, got "${value}"`);
-      out[key] = n;
-    } else if (key === 'shape') {
-      if (!SHAPES.includes(value)) throw new Error(`shape must be one of ${SHAPES.join(', ')}`);
-      out.shape = value;
-    } else {
-      if (key === 'color') parseColor(value);   // fail early with the color error
-      else parsePaint(value);
-      out[key] = value;
-    }
-  }
-  return out;
-}
-
-/** The style string for style options (the inverse of parseStyle). */
-export function formatStyle(o = {}) {
-  return STYLE_KEYS.filter((k) => o[k] !== undefined && o[k] !== null && o[k] !== false)
-    .map((k) => (k === 'shadow' ? 'shadow' : `${k}=${String(o[k]).replace(/\s+/g, '')}`)).join(' ');
 }

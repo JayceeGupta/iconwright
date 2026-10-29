@@ -424,7 +424,7 @@ Tell me how to undo (restore_icons with all:true).`,
   },
 ];
 
-export const INSTRUCTIONS = `iconwright designs icons on any OS and changes the Windows taskbar and desktop.
+export const INSTRUCTIONS = `iconwright changes the Windows taskbar and desktop (app icons, pins, desktop layout) and designs custom icons on any OS.
 - Exploring a look: search_icons (numbered sheet) → design_icons (rows = sources, columns = style strings; user picks a cell like "B2") → preview_icon (the icon on real surfaces) → make_icon (files) or app_apply_icon. Show each image and let the user choose; change one thing per round. open_studio hands the design to the user to adjust by hand.
 - A specific look: act directly. "All my taskbar icons white": taskbar_status, then ONE app_apply_icon with every name, source "app", style "color=white".
 - Styles are strings: "color=white bg=#2d5ba6 shape=squircle shadow". "app:<App name>" as a source is an installed app's icon (Windows).

@@ -6,14 +6,14 @@
 <main id="content">
 <section class="hero">
   <div class="hero-copy">
-    <p class="eyebrow">MCP server · CLI · Studio</p>
-    <h1>Icons that fit where they live.</h1>
-    <p class="lede">Tell your agent what you want. iconwright finds the artwork, lays out options side by side, shows each one on a real taskbar, desktop and phone, then makes the files, or puts the icon straight onto your Windows taskbar.</p>
+    <p class="eyebrow">An MCP server for Windows</p>
+    <h1>Restyle your taskbar by asking.</h1>
+    <p class="lede">“Make all my taskbar icons white.” “Pin Spotify next to Chrome.” “Tidy my desktop.” iconwright lets your agent change app icons, pins and desktop layout, with undo for everything. When no icon fits, it designs one and shows it on your taskbar first.</p>
     <div class="actions">
       <a class="btn primary lg" href="/docs/getting-started">Get started</a>
       <a class="btn lg" href="/studio/">Open the studio</a>
     </div>
-    <p class="fine">Works with Claude Code, Codex, Cursor and any MCP client. Design and export run on Windows, macOS and Linux. Free and open source.</p>
+    <p class="fine">Works with Claude Code, Codex, Cursor and any MCP client. Icon design and export also run on macOS and Linux. Free and open source.</p>
   </div>
   <div class="specimen" aria-label="One icon, pixel by pixel">
     <figure>
@@ -28,9 +28,26 @@
 </section>
 
 <section class="section">
+  <div class="section-in two">
+    <div>
+      <p class="eyebrow">Taskbar and desktop</p>
+      <h2>Your taskbar, restyled in one sentence</h2>
+      <p class="intro">iconwright knows how Windows keeps pinned apps, so your agent can restyle every icon, pin, unpin and reorder apps, and tidy the desktop. Changes that need Explorer to restart are batched into one restart.</p>
+      <p class="links"><a href="/docs/taskbar">Taskbar and apps guide →</a> <a href="/docs/desktop">Desktop guide →</a></p>
+    </div>
+    <div class="chat" aria-label="An example conversation">
+      <p class="you">Make all my taskbar icons white.</p>
+      <p class="call">taskbar_status()</p>
+      <p class="call">app_apply_icon(apps: [13 pinned apps], source: "app", style: "color=white")</p>
+      <p class="agent">Done: 13 icons are now white, each from the app's own artwork. Want them back? Say “undo” and I'll restore the originals.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
   <div class="section-in">
-    <p class="eyebrow">How it works</p>
-    <h2>From an idea to an icon in four steps</h2>
+    <p class="eyebrow">Custom icons</p>
+    <h2>When no icon fits, design one in four steps</h2>
     <p class="intro">Each step is one small image, so trying ideas costs your agent almost nothing and costs you a glance. Nothing is saved until you pick.</p>
     <ol class="steps">
       <li>
@@ -69,22 +86,7 @@
   </div>
 </section>
 
-<section class="section">
-  <div class="section-in two">
-    <div>
-      <p class="eyebrow">Windows</p>
-      <h2>Your taskbar, restyled in one sentence</h2>
-      <p class="intro">iconwright knows how Windows keeps pinned apps, so your agent can restyle every icon, pin, unpin and reorder apps, and tidy the desktop. Changes that need Explorer to restart are batched into one restart.</p>
-      <p class="links"><a href="/docs/taskbar">Taskbar and apps guide →</a> <a href="/docs/desktop">Desktop guide →</a></p>
-    </div>
-    <div class="chat" aria-label="An example conversation">
-      <p class="you">Make all my taskbar icons white.</p>
-      <p class="call">taskbar_status()</p>
-      <p class="call">app_apply_icon(apps: [13 pinned apps], source: "app", style: "color=white")</p>
-      <p class="agent">Done: 13 icons are now white, each from the app's own artwork. Want them back? Say “undo” and I'll restore the originals.</p>
-    </div>
-  </div>
-</section>
+
 
 <section class="section handoff" id="agents">
   <div class="section-in two">

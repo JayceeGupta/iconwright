@@ -262,7 +262,7 @@ async function brandAssets() {
   for (const s of [16, 24, 32, 48]) await writeFile(path.join(dist, 'img', `mark-${s}.png`), await resizePng(master, s));
   // Social card.
   const title = await text('iconwright', { size: 120, weight: 600, color: '#25282d' });
-  const tag = await text('Design icons with your agent. See them where they live.', { size: 38, color: '#5b616c' });
+  const tag = await text('Restyle your Windows taskbar and desktop by asking your agent.', { size: 38, color: '#5b616c' });
   await writeFile(path.join(dist, 'og.png'), await sharp({ create: { width: 1200, height: 630, channels: 4, background: '#edeff2' } })
     .composite([{ input: await resizePng(master, 220), left: 90, top: 140 }, { input: title.input, left: 360, top: 170 }, { input: tag.input, left: 92, top: 430 }]).png().toBuffer());
 }
@@ -303,7 +303,7 @@ function llmsTxt(pages) {
   const line = (n) => { const p = pages.get(n); return p ? `- [${p.title}](${SITE}/docs/${n}.md): ${p.description}` : null; };
   return `# iconwright
 
-> iconwright is an MCP server, CLI and web studio for designing icons with AI agents and putting them on the Windows taskbar and desktop. It searches 200,000+ open-source icons (Iconify), renders comparison grids and mockups (taskbar, Start, desktop, Explorer, browser tab, macOS Dock, iOS, Android), exports .ico, .icns, favicon sets and PNGs, and on Windows restyles, pins, unpins and reorders apps and arranges desktop icons, with undo for everything.
+> iconwright is an MCP server (plus CLI and web studio) that lets AI agents restyle the Windows taskbar and desktop and design custom icons. On Windows it restyles app icons, pins, unpins and reorders taskbar apps and arranges desktop icons, with undo for everything. On any OS it searches 200,000+ open-source icons (Iconify), renders comparison grids and mockups (taskbar, Start, desktop, Explorer, browser tab, macOS Dock, iOS, Android), and exports .ico, .icns, favicon sets and PNGs.
 
 How to use it well (for agents):
 - Design loop, cheapest first: search_icons (numbered sheet) -> design_icons (grid, rows = sources, columns = style strings, cells like "B2") -> preview_icon (mockups) -> make_icon or app_apply_icon. Show the user each image and let them pick.
@@ -327,11 +327,11 @@ ${['changelog', 'contributing'].map(line).filter(Boolean).join('\n')}
 
 const HOME_MD = `# iconwright
 
-Icons that fit where they live. Tell your agent what you want: iconwright finds the artwork, lays out options side by side, shows each one on a real taskbar, desktop and phone, then makes the files, or puts the icon straight onto your Windows taskbar.
+Restyle your Windows taskbar and desktop by asking your agent: change any app's icon, pin, unpin and reorder apps, arrange the desktop, and undo any of it. When no icon fits, iconwright designs one and previews it on a real taskbar before applying it.
 
-- Design loop: search_icons -> design_icons -> preview_icon -> make_icon / app_apply_icon
+- Windows: restyle app icons (one app or the whole taskbar in one call), pin, unpin and reorder taskbar apps (one Explorer restart per change), arrange desktop icons, undo everything
+- Custom icons: search_icons -> design_icons -> preview_icon -> make_icon / app_apply_icon
 - Exports: Windows .ico, macOS .icns, favicon and web-app icons, PNGs at every size
-- Windows: restyle, pin, unpin and reorder taskbar apps (one Explorer restart per change), arrange desktop icons, undo everything
 - Works with Claude Code (plugin + skill + prompts), Codex and any MCP client; design and export also run on macOS and Linux
 
 ## Hand this to your agent
@@ -349,6 +349,9 @@ await mkdir(path.join(dist, 'docs'), { recursive: true });
 await mkdir(path.join(dist, 'img'), { recursive: true });
 for (const f of ['site.css', 'site.js']) await cp(path.join(here, 'src', f), path.join(dist, f));
 await cp(path.join(root, 'studio'), path.join(dist, 'studio'), { recursive: true });
+// The studio draws in the browser with the engine's own recipes and sample app icons.
+await cp(path.join(root, 'src', 'shared'), path.join(dist, 'studio', 'shared'), { recursive: true });
+await cp(path.join(root, 'assets', 'neighbors'), path.join(dist, 'studio', 'neighbors'), { recursive: true, filter: (f) => !f.endsWith('.md') });
 await brandAssets();
 const images = await demoImages();
 
@@ -377,7 +380,7 @@ await writeFile(path.join(dist, 'docs', 'index.html'), '<!doctype html><meta htt
 
 let home = await readFile(path.join(here, 'src', 'home.html'), 'utf8');
 home = home.replace('{{header}}', siteHeader('')).replace('{{footer}}', siteFooter()).replace('{{search}}', searchDialog)
-  .replace('{{head}}', head('iconwright: design icons with your agent', 'An MCP server, CLI and studio for designing icons with AI agents: search 200,000 icons, compare styles, see them on a taskbar, desktop and phone, export for Windows, macOS and the web, and restyle your Windows taskbar.', '/index.md'))
+  .replace('{{head}}', head('iconwright: restyle your Windows taskbar and desktop with your agent', 'An MCP server that lets your AI agent change app icons, pin and reorder taskbar apps and arrange the desktop, with undo, and design custom icons previewed on a real taskbar, desktop and phone.', '/index.md'))
   .replaceAll('{{repo}}', REPO).replaceAll('{{site}}', SITE).replaceAll('{{version}}', version)
   .replace('{{agentPrompt}}', esc(AGENT_PROMPT))
   .replace('{{sizes:dark}}', sizesHtml('dark')).replace('{{sizes:light}}', sizesHtml('light'))

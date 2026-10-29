@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Studio, rebuilt.** Everything is drawn in your browser from the same recipe the server uses, so edits show instantly (no server round trip) and downloads match the preview. New: undo and redo, eight live ideas, swatches and gradient presets, artwork color stays original until you choose a custom one, artwork size with Auto, live style code with clear errors, drag and drop SVG, a download menu, an app-style phone layout, and a scene gallery with light and dark per scene and click to enlarge.
+- **Scenes, redrawn.** Every mockup was rebuilt from platform measurements: a full Windows 11 taskbar with Start, search, tray and clock; a real Start menu with Pinned, Recommended and the account bar; Windows 11 wallpaper; File Explorer with tabs, command bar, address bar and navigation pane; a Chrome-style browser; a macOS Dock with tooltip and trash; an iPhone home screen with Apple's continuous-corner mask; and a Pixel home screen. Neighbor apps are real full-color logos instead of flat recolored glyphs. The MCP preview_icon tool and the studio draw the same layouts.
+- **One icon recipe.** The server now renders icons by rasterizing the same SVG the studio shows (src/shared), which also makes renders faster.
+- iconwright is now pitched first as an MCP server for restyling the Windows taskbar and desktop, with icon design second.
 - **Fix:** restyling an app no longer changes pinned shortcuts that only launch through it with arguments, such as Steam games (which run `steam.exe steam://rungameid/…`) or browser profile shortcuts. Found on screen: restyling Steam also changed a pinned Steam game.
 - `iconwright report` prints system details and a self-test as Markdown for test reports, without app names, paths or the user name.
 - `iconwright mcp` starts the MCP server, and the package is ready for npx as `iconwright` (not published yet).

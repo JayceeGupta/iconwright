@@ -1,6 +1,8 @@
 # The studio
 
-iconwright studio is a visual editor for icons in your browser. Search for artwork, adjust colors and shapes with live previews, see the icon on a taskbar, desktop and phone, and download it. It uses the same engine as the agent tools, so what you see is exactly what you get.
+iconwright studio is a visual editor for icons in your browser. Pick artwork, change its colors and shape, and see it on a Windows taskbar, Start menu, desktop, File Explorer, a browser, the macOS Dock, an iPhone and Android as you edit. Then download it, or put it on your apps.
+
+Everything you see is drawn in your browser with the same recipe the agent tools use, so changes show instantly and the files you download match the preview.
 
 There are two ways to use it:
 
@@ -13,17 +15,19 @@ There are two ways to use it:
 
 ## Working in the studio
 
-On a computer the studio has three columns: artwork on the left, the icon and its scenes in the middle, and the look and downloads on the right. On a phone the icon stays pinned at the top and the sections are tabs at the bottom.
+On a computer the studio has three columns: artwork on the left, the icon and where it lives in the middle, and its style on the right. On a phone the icon stays pinned at the top and Artwork, Style and Scenes are tabs at the bottom.
 
-1. **Pick artwork.** Search, paste SVG code, or (local, Windows) pick one of your pinned apps to restyle its own icon. The studio opens with a first result already picked.
-2. **Shape the look.** Recolor the artwork, add a solid or gradient background, choose a shape, and adjust corner radius, padding and shadow. **Reset** goes back to the plain artwork.
-3. **Check it in place.** Choose the scenes you care about, set the app name shown under the icon, and pick the display scaling to mimic (100%, 150% or 200%).
-4. **Explore.** **Ideas** renders six color and shape variations of the same artwork; click one to use it. **Keep** saves the current design so you can compare and go back.
-5. **Download** a Windows `.ico`, a macOS `.icns`, a website icon set, a PNG, or PNGs at every size.
+1. **Pick artwork.** Search more than 200,000 icons (filter to one-color or multicolor sets), paste SVG code, or drop an `.svg` file anywhere on the page. In the local studio on Windows, **My apps** lists your pinned apps so you can restyle an app's own icon.
+2. **Style it.** Artwork color is **Original** until you choose **Custom**. Add a solid or gradient background, pick a shape, and set the artwork size (or leave it on **Auto**) and a soft shadow. Swatches cover the common choices; the color pickers do the rest. **Reset** goes back to the plain artwork.
+3. **Try ideas.** **Ideas** shows eight looks for the current artwork; click one to use it, or **Shuffle** for more. **Keep this version** saves a design so you can compare and go back.
+4. **Check where it lives.** Turn scenes on and off, switch light and dark where Windows has both, and set the app name shown under the icon. Click a scene to enlarge it. Notes appear where a platform treats your icon differently, for example iOS filling see-through corners with black.
+5. **Download** from the button at the top right: Windows `.ico`, macOS `.icns`, a website icon kit, a PNG, or PNGs at every size. In the local studio on Windows, **Apply to apps** puts it on the Start menu and taskbar shortcuts of the apps you tick.
+
+**Undo and redo** with the arrows at the top (Ctrl+Z, Ctrl+Shift+Z). Press **/** to jump to search. The address bar always holds the current design, so you can bookmark or share it.
 
 ## The style code
 
-The **Style code** field under the look controls always shows the current look as a [style string](design.md#styles), such as `color=white bg=#2d5ba6 shape=squircle`. It's what agents and the command line use. You can type in it too: press Enter and the controls follow.
+The **Style code** field at the bottom of the Style panel shows the current look as a [style string](design.md#styles), such as `color=white bg=#2d5ba6 shape=squircle`. It's what agents and the command line use. Type in it and the preview follows; a mistake is explained under the field.
 
 ## Working with your agent
 

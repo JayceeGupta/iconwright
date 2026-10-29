@@ -1,6 +1,6 @@
 ---
 name: iconwright
-description: Icon design and Windows taskbar/desktop customization with the iconwright MCP tools. Use when the user wants an icon designed, restyled or exported (.ico, .icns, favicon), app or desktop icons changed, taskbar apps pinned, unpinned or reordered, desktop icons arranged, or any of that undone.
+description: Windows taskbar and desktop customization and icon design with the iconwright MCP tools. Use when the user wants app, taskbar or desktop icons changed or restyled, taskbar apps pinned, unpinned or reordered, desktop icons arranged, a custom icon designed or exported (.ico, .icns, favicon), or any of that undone.
 ---
 
 # iconwright

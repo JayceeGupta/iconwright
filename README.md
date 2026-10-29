@@ -2,33 +2,33 @@
 
 <h1 align="center">iconwright</h1>
 
-<p align="center"><b>Design icons with your agent. See them where they live.</b><br>
-An MCP server, CLI and web studio for icons, and for the Windows taskbar and desktop.</p>
+<p align="center"><b>Restyle your Windows taskbar and desktop by asking your agent.</b><br>
+An MCP server for app icons, taskbar pins and desktop layout, that also designs custom icons.</p>
 
 <p align="center"><a href="https://iconwright.guptajayam.com">Website</a> · <a href="https://iconwright.guptajayam.com/docs/getting-started">Docs</a> · <a href="https://iconwright.guptajayam.com/studio/">Studio</a> · <a href="https://iconwright.guptajayam.com/llms.txt">llms.txt</a></p>
 
 ---
 
-Tell your agent what you want. iconwright finds the artwork among 200,000+ open-source icons, lays out options side by side, shows each one on a real taskbar, desktop and phone, then makes the files, or puts the icon straight onto your Windows taskbar.
+Say “make all my taskbar icons white”, “pin Spotify next to Chrome” or “tidy my desktop”. iconwright changes the shortcuts Windows reads its icons from, edits the pinned-apps list in one Explorer restart, and arranges desktop icons, and it can put every change back. When no existing icon fits, it designs one: it finds artwork among 200,000+ open-source icons, shows options side by side, and previews the winner on your own taskbar before applying it.
 
 ![A design grid: three rocket icons in four styles](https://iconwright.guptajayam.com/img/grid.png)
 
 ## What it does
 
-**Design (Windows, macOS, Linux)**
+**Your Windows taskbar and desktop**
+
+- **Restyle app icons**: one app or your whole taskbar in one call (for example, every icon white, each from its own logo), or any icon file you have.
+- **Pin, unpin and reorder** taskbar apps in a single Explorer restart, with a dry run first if you like.
+- **Desktop**: change icons, arrange, resize, show and hide system icons, save and restore layouts.
+- **Undo**: original icons are recorded and the pinned-apps list is backed up before every change.
+
+**Custom icons (Windows, macOS, Linux)**
 
 - **Search** Iconify's open-source sets and brand logos; results come back as one numbered sheet.
 - **Compare** artwork × styles in one small grid; pick a cell like “B2”.
 - **Preview** on a Windows taskbar, Start menu, desktop, File Explorer, a browser tab, the macOS Dock, iOS and Android, plus true pixel sizes.
 - **Export** Windows `.ico`, macOS `.icns`, a complete favicon and web-app set, or PNGs at every size.
 - **Studio**: the same, by hand, in your browser, [online](https://iconwright.guptajayam.com/studio/) or locally.
-
-**Windows**
-
-- **Restyle app icons**, one app or your whole taskbar in one call (for example: every icon white, each from its own logo).
-- **Pin, unpin and reorder** taskbar apps in a single Explorer restart, with a dry run first if you like.
-- **Desktop**: change icons, arrange, resize, show and hide system icons, save and restore layouts.
-- **Undo**: original icons are recorded and the pinned-apps list is backed up before every change. Save a desktop layout before rearranging icons.
 
 ## Install
 

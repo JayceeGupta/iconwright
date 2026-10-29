@@ -166,21 +166,24 @@ export async function searchIconsDetailed(query, { limit = 20, start = 0, collec
   const url = new URL(`${ICONIFY}/search`);
   url.searchParams.set('query', query.trim());
   // Iconify's smallest page is 32. A palette filter is applied here, so ask for more.
-  url.searchParams.set('limit', String(Math.min(999, Math.max(32, palette ? 400 : want))));
-  if (start) url.searchParams.set('start', String(Math.max(0, Math.trunc(start))));
+  url.searchParams.set('limit', String(Math.min(999, Math.max(32, palette ? 999 : want))));
+  const from = Math.max(0, Math.trunc(Number(start) || 0));
+  if (from && !palette) url.searchParams.set('start', String(from));
   if (collections?.length) url.searchParams.set('prefixes', collections.join(','));
   const response = await get(url);
   if (!response.ok) throw new Error(`Iconify search failed (${response.status})`);
   const result = JSON.parse(await responseText(response));
   const wantColor = palette === 'color';
   const fits = (id) => !palette || Boolean(result.collections?.[id.split(':')[0]]?.palette) === wantColor;
-  const icons = Array.isArray(result.icons) ? result.icons.filter(fits).slice(0, want) : [];
+  const icons = Array.isArray(result.icons) ? result.icons.filter(fits).slice(palette ? from : 0, (palette ? from : 0) + want) : [];
   const used = new Set(icons.map((i) => i.split(':')[0]));
   const sets = {};
   for (const [prefix, info] of Object.entries(result.collections ?? {})) {
     if (used.has(prefix)) sets[prefix] = { name: info.name, license: info.license?.spdx || info.license?.title };
   }
-  return { icons, total: result.total ?? icons.length, collections: sets };
+  // With a palette filter the matches come from one big page, so the total is what passed the filter.
+  const total = palette ? Math.min(result.icons?.filter(fits).length ?? 0, 999) : (result.total ?? icons.length);
+  return { icons, total, collections: sets };
 }
 
 export async function searchIcons(query, limit = 20) {

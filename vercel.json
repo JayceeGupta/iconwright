@@ -6,13 +6,36 @@
   "outputDirectory": "site/dist",
   "cleanUrls": true,
   "functions": {
-    "api/studio.mjs": { "includeFiles": "assets/**", "maxDuration": 30, "memory": 1024 }
+    "api/studio.mjs": {
+      "includeFiles": "assets/**",
+      "maxDuration": 30,
+      "memory": 1024
+    }
   },
   "rewrites": [
-    { "source": "/api/:op", "destination": "/api/studio?op=:op" }
+    {
+      "source": "/api/:op",
+      "destination": "/api/studio?op=:op"
+    }
   ],
   "headers": [
-    { "source": "/(.*).md", "headers": [{ "key": "Content-Type", "value": "text/markdown; charset=utf-8" }] },
-    { "source": "/llms(.*).txt", "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }] }
+    {
+      "source": "/(.*).md",
+      "headers": [
+        { "key": "Content-Type", "value": "text/markdown; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/llms(.*).txt",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/studio/shared/(.*).mjs",
+      "headers": [
+        { "key": "Content-Type", "value": "text/javascript; charset=utf-8" }
+      ]
+    }
   ]
 }

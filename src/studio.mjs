@@ -11,14 +11,14 @@ import { randomBytes } from 'node:crypto';
 import { readFile, mkdtemp, rm, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { renderMaster, resizePng, makeIcon, parseStyle, formatStyle, FORMATS, safeName, defaultOutDir } from './render.mjs';
-import { searchIconsDetailed, fetchIcons, isIconId, loadSource } from './source.mjs';
-import { designGrid } from './design.mjs';
-import { renderScenes, SCENES, DEFAULT_SCENES } from './scenes.mjs';
+import { resizePng, makeIcon, parseStyle, formatStyle, FORMATS, safeName, defaultOutDir, artFor } from './render.mjs';
+import { searchIconsDetailed, isIconId, loadSource } from './source.mjs';
 import { zip } from './zip.mjs';
 
 const STATIC_DIR = fileURLToPath(new URL('../studio/', import.meta.url));
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
+// The studio draws in the browser with the same recipes the server uses; serve them as-is.
+const EXTRA_DIRS = { 'shared/': fileURLToPath(new URL('./shared/', import.meta.url)), 'neighbors/': fileURLToPath(new URL('../assets/neighbors/', import.meta.url)) };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 const MAX_BODY = 1_000_000;
 
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
@@ -77,40 +77,19 @@ export function createStudioHandler({ local = false, token = null, win = null, e
     throw new HttpError(400, local ? 'Use an Iconify id, pasted SVG, an image file path or app:<name>.' : 'Use an Iconify id or pasted SVG.');
   }
   const style = (p) => { try { return parseStyle(p.style); } catch (e) { throw new HttpError(400, e.message); } };
-  const master = async (p) => renderMaster({ source: await source(p.source), ...style(p) });
 
   const routes = {
     async info() {
-      return { local, windows: Boolean(win), scenes: SCENES, defaultScenes: DEFAULT_SCENES, formats: FORMATS };
+      return { local, windows: Boolean(win), formats: FORMATS };
     },
     async search(p) {
-      const r = await searchIconsDetailed(String(p.q ?? ''), { limit: Math.min(96, Number(p.limit) || 48), start: Number(p.start) || 0, collections: list(p.collections) });
+      const palette = ['mono', 'color'].includes(p.palette) ? p.palette : undefined;
+      const r = await searchIconsDetailed(String(p.q ?? ''), { limit: Math.min(96, Number(p.limit) || 48), start: Number(p.start) || 0, collections: list(p.collections), palette });
       return { icons: r.icons, total: r.total, collections: r.collections };
     },
-    async svg(p) {
-      const id = String(p.id ?? '');
-      if (!isIconId(id)) throw new HttpError(400, 'Not an icon id.');
-      const svg = (await fetchIcons([id])).get(id);
-      if (!svg) throw new HttpError(404, `No icon "${id}".`);
-      // Served as an image only: no scripts, even if someone opens it directly.
-      return { raw: svg, type: 'image/svg+xml', headers: { 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'", 'cache-control': 'public, max-age=86400' } };
-    },
-    async render(p) {
-      const size = Math.max(16, Math.min(1024, Number(p.size) || 256));
-      return { raw: await resizePng(await master(p), size), type: 'image/png' };
-    },
-    async scenes(p) {
-      const scenes = [...new Set(list(p.scenes))];   // each scene at most once
-      const bad = scenes.filter((s) => !SCENES.includes(s));
-      if (bad.length) throw new HttpError(400, `Unknown scene: ${bad.join(', ')}`);
-      const scale = [1, 1.5, 2].includes(Number(p.scale)) ? Number(p.scale) : 1;
-      const png = await renderScenes({ master: await master(p), label: String(p.label || 'My App').slice(0, 40), scenes: scenes.length ? scenes : DEFAULT_SCENES, scale });
-      return { raw: png, type: 'image/png' };
-    },
-    async grid(p) {
-      const sources = await Promise.all(list(p.sources).slice(0, 6).map(source));
-      const styles = (Array.isArray(p.styles) ? p.styles : list(p.styles)).slice(0, 6).map((s) => { try { return parseStyle(s); } catch (e) { throw new HttpError(400, e.message); } });
-      return { raw: (await designGrid({ sources, styles: styles.length ? styles : [{}] })).png, type: 'image/png' };
+    // Measured artwork for the browser to draw: { svg, box } or { href, width, height, box }.
+    async art(p) {
+      return artFor(await source(p.source));
     },
     async download(p) {
       const format = String(p.format || 'ico');
@@ -185,9 +164,11 @@ export function createStudioHandler({ local = false, token = null, win = null, e
       }
       if (!local) throw new HttpError(404, 'Not found');
       // Static files for the local studio.
-      const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-      const file = path.resolve(STATIC_DIR, rel);
-      if (!file.startsWith(STATIC_DIR)) throw new HttpError(403, 'Forbidden');
+      const rel = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
+      const extra = Object.keys(EXTRA_DIRS).find((d) => rel.startsWith(d));
+      const root = extra ? EXTRA_DIRS[extra] : STATIC_DIR;
+      const file = path.resolve(root, extra ? rel.slice(extra.length) : rel);
+      if (!file.startsWith(root)) throw new HttpError(403, 'Forbidden');
       const data = await readFile(file).catch(() => { throw new HttpError(404, 'Not found'); });
       return send(res, 200, data, MIME[path.extname(file)] || 'application/octet-stream');
     } catch (e) {

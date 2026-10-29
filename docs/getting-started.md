@@ -1,6 +1,6 @@
 # Getting started
 
-iconwright lets you design icons by talking to an AI agent, and put them on your Windows taskbar and desktop. This page gets it installed and walks you through a first icon. It takes about five minutes.
+iconwright lets your AI agent restyle your Windows taskbar and desktop: change app icons, pin and reorder apps, and arrange desktop icons. It also designs custom icons. This page gets it installed and walks you through a first change. It takes about five minutes.
 
 ## What you need
 
