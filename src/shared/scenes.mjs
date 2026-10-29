@@ -56,7 +56,7 @@ export const SCENE_APPS = {
   browser: ['github', 'youtube'],
   dock: ['msafari', 'mvscode', 'mspot', 'mfigma', 'mslack'],
   ios: ['photos', 'maps', 'youtube', 'gmail', 'netflix', 'appstore', 'mspotify', 'messages', 'safari', 'music', 'mwhatsapp'],
-  android: ['photos', 'maps', 'youtube', 'gmail', 'netflix', 'mspotify', 'mwhatsapp', 'messages'],
+  android: ['photos', 'maps', 'youtube', 'gmail', 'netflix', 'mspotify', 'mwhatsapp', 'messages', 'music'],
   sizes: [],
 };
 
@@ -395,7 +395,7 @@ function android({ id, label, nm }) {
   phoneStatus(nodes, W, '#ffffff', 'android');
   nodes.push({ t: 'text', x: 24, y: 58, text: 'Wed, Oct 29', size: 22, color: '#ffffff', font: 'android' });
   nodes.push({ t: 'text', x: 24, y: 90, text: '☁  18°C  Partly cloudy', size: 13, color: 'rgba(255,255,255,0.85)', font: 'android' });
-  const grid = [['photos', 'maps', 'me', 'youtube'], ['gmail', 'netflix', 'mspotify', 'mwhatsapp']];
+  const grid = [['youtube', 'netflix', 'me', 'mspotify'], ['mwhatsapp', 'music']];
   const size = 56, pitchX = 92, x0 = Math.round((W - (3 * pitchX + size)) / 2);
   grid.forEach((row, r) => row.forEach((app, k) => {
     const x = x0 + k * pitchX, y = 150 + r * 102;
@@ -403,7 +403,7 @@ function android({ id, label, nm }) {
     nodes.push({ t: 'text', x: x + size / 2, y: y + size + 8, text: app === 'me' ? label : nm(app), size: 12, color: '#ffffff', anchor: 'middle', maxWidth: 84, font: 'android', shadow: 'ios' });
   }));
   // Dock row and the search pill.
-  ['messages', 'photos', 'maps', 'mspotify'].forEach((app, k) => nodes.push({ t: 'icon', app, x: x0 + k * pitchX, y: H - 150, size, mask: 'android' }));
+  ['messages', 'photos', 'maps', 'gmail'].forEach((app, k) => nodes.push({ t: 'icon', app, x: x0 + k * pitchX, y: H - 150, size, mask: 'android' }));
   let b = rect(20, H - 72, W - 40, 50, 'rgba(214,232,222,0.16)', 25);
   const gx = 46, gy = H - 47;
   b += `<path d="M${gx + 8} ${gy}a8 8 0 1 1 -2.3 -5.6" fill="none" stroke="#4285f4" stroke-width="3"/>` + rect(gx, gy - 1.5, 8, 3, '#4285f4');

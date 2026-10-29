@@ -72,8 +72,8 @@ export class Icon {
   static async create(art, style) {
     const svg = composeIconSvg(art, style, { size: 512 });
     const url = svgUrl(svg);
-    const img = await loadImage(url);
-    return new Icon(svg, url, img);
+    try { return new Icon(svg, url, await loadImage(url)); }
+    catch (err) { URL.revokeObjectURL(url); throw err; }
   }
   constructor(svg, url, img) { this.svg = svg; this.url = url; this.img = img; this.rasters = new Map(); }
   /** A PNG data URL of the icon at exactly px pixels. */
