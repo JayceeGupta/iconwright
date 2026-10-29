@@ -3,6 +3,7 @@
 // Demo images are rendered by iconwright itself. Run with `npm run site:build`.
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { Marked } from 'marked';
@@ -12,7 +13,7 @@ import { renderMaster, resizePng, parseStyle } from '../src/render.mjs';
 import { designGrid } from '../src/design.mjs';
 import { renderScenes } from '../src/scenes.mjs';
 import { TOOLS, PROMPTS, listedTools } from '../src/tools.mjs';
-import { text } from '../src/draw.mjs';
+import { text, at, compose } from '../src/draw.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -133,7 +134,13 @@ const head = (title, description, mdPath) => `<!doctype html>
 <link rel="alternate" type="text/markdown" href="${mdPath}" title="This page as Markdown">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
-<meta property="og:image" content="${SITE}/og.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="iconwright">
+<meta property="og:image" content="${SITE}/og.png?v=${ogVersion}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="iconwright: restyle your taskbar by asking your agent. A Windows taskbar before and after making every icon white.">
+<meta name="twitter:image" content="${SITE}/og.png?v=${ogVersion}">
 <meta name="twitter:card" content="summary_large_image">
 <script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -259,11 +266,6 @@ async function brandAssets() {
   await writeFile(path.join(dist, 'img', 'specimen.png'), await sharp({ create: { width: 512, height: 512, channels: 4, background: '#f8f9fb' } })
     .composite([{ input: zoom }, { input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512">${grid}</svg>`) }]).png().toBuffer());
   for (const s of [16, 24, 32, 48]) await writeFile(path.join(dist, 'img', `mark-${s}.png`), await resizePng(master, s));
-  // Social card.
-  const title = await text('iconwright', { size: 120, weight: 600, color: '#25282d' });
-  const tag = await text('Restyle your Windows taskbar and desktop by asking your agent.', { size: 38, color: '#5b616c' });
-  await writeFile(path.join(dist, 'og.png'), await sharp({ create: { width: 1200, height: 630, channels: 4, background: '#edeff2' } })
-    .composite([{ input: await resizePng(master, 220), left: 90, top: 140 }, { input: title.input, left: 360, top: 170 }, { input: tag.input, left: 92, top: 430 }]).png().toBuffer());
 }
 
 // Home page showcase: real requests, each rendered as the taskbar after the agent's change.
@@ -314,6 +316,43 @@ const GALLERY = [
 const SCENE_SIZE = {};
 const galleryHtml = () => GALLERY.map(([s, t, sub]) => `<figure class="shot shot-${s}"><img src="/img/scene-${s}.webp" width="${SCENE_SIZE[s]?.width ?? ''}" height="${SCENE_SIZE[s]?.height ?? ''}" alt="The Launcher icon in a ${esc(t)} mockup" loading="lazy" decoding="async"><figcaption><b>${t}</b>${sub}</figcaption></figure>`).join('\n      ');
 
+// Social card (1200x630): the name, the promise and the taskbar before and after, inside 72 px margins
+// so chat apps that crop the edges still show everything.
+// Changes whenever the card does, so chat apps that cache previews by URL fetch the new one.
+let ogVersion = '1';
+async function socialCard() {
+  const W = 1200, H = 630, M = 72;
+  const master = await renderMaster({ source: MARK, padding: 0 });
+  const bg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs>
+    <radialGradient id="a" cx="0.15" cy="0.1" r="0.7"><stop offset="0" stop-color="#7b3f92" stop-opacity="0.35"/><stop offset="1" stop-color="#7b3f92" stop-opacity="0"/></radialGradient>
+    <radialGradient id="b" cx="0.95" cy="0.2" r="0.6"><stop offset="0" stop-color="#2d5ba6" stop-opacity="0.4"/><stop offset="1" stop-color="#2d5ba6" stop-opacity="0"/></radialGradient></defs>
+    <rect width="${W}" height="${H}" fill="#15171a"/><rect width="${W}" height="${H}" fill="url(#a)"/><rect width="${W}" height="${H}" fill="url(#b)"/></svg>`;
+  const name = await text('iconwright', { size: 40, weight: 600, color: '#e8eaed' });
+  const line1 = await text('Restyle your taskbar', { size: 72, weight: 600, color: '#ffffff' });
+  const line2 = await text('by asking your agent.', { size: 72, weight: 600, color: '#c9a8f0' });
+  const layers = [
+    { input: Buffer.from(bg), left: 0, top: 0 },
+    { input: await resizePng(master, 60), left: M, top: M },
+    at(name, M + 76, M + 30 - name.height / 2),
+    at(line1, M, 176), at(line2, M, 176 + 88),
+  ];
+  // Before and after, side by side, each a crop of the app icons.
+  const bw = Math.floor((W - 2 * M - 24) / 2), bh = Math.round(bw * 164 / 600);
+  for (const [i, n, label] of [[0, 'before', 'Before'], [1, 'white', 'After: “make them white”']]) {
+    const file = path.join(dist, 'img', `taskbar-${n}-sm.png`);
+    const x = M + i * (bw + 24), y = H - M - bh;
+    const round = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${bw}" height="${bh}"><rect width="${bw}" height="${bh}" rx="14" fill="#fff"/></svg>`);
+    const img = await sharp(file).resize(bw, bh).composite([{ input: round, blend: 'dest-in' }]).png().toBuffer().catch(() => null);
+    if (!img) continue;
+    layers.push({ input: img, left: x, top: y });
+    const t = await text(label, { size: 20, weight: 600, color: '#9aa1ab' });
+    layers.push(at(t, x, y - 34));
+  }
+  const card = await compose(W, H, layers);
+  ogVersion = createHash('sha1').update(card).digest('hex').slice(0, 8);
+  await writeFile(path.join(dist, 'og.png'), card);
+}
+
 async function demoImages() {
   const out = {};
   const save = async (name, png, alt) => {
@@ -333,8 +372,8 @@ async function demoImages() {
       const png = await renderScenes({ master, label: 'Steam', scenes: ['taskbar'], theme: 'dark', scale: 2, bare: true,
         neighbors: order.map((k) => ({ name: APP[k][0], source: nb(APP[k][1]), ...look })) });
       await writeFile(path.join(dist, 'img', `taskbar-${name}.png`), png);
-      // The apps sit between x 415 and 715 of the 880 px bar.
-      await writeFile(path.join(dist, 'img', `taskbar-${name}-sm.png`), await sharp(png).extract({ left: 830, top: 0, width: 600, height: 164 }).png().toBuffer());
+      // The apps sit between x 419 and 719 of the 880 px bar.
+      await writeFile(path.join(dist, 'img', `taskbar-${name}-sm.png`), await sharp(png).extract({ left: 838, top: 0, width: 600, height: 164 }).png().toBuffer());
     };
     await taskbar('before');
     for (const d of SHOWCASE) await taskbar(d.id, d.render(ROCKET));
@@ -419,6 +458,7 @@ await cp(path.join(root, 'src', 'shared'), path.join(dist, 'studio', 'shared'), 
 await cp(path.join(root, 'assets', 'neighbors'), path.join(dist, 'studio', 'neighbors'), { recursive: true, filter: (f) => !f.endsWith('.md') });
 await brandAssets();
 const images = await demoImages();
+await socialCard();
 
 // Generated docs (also written into docs/ so they read well on GitHub).
 await writeFile(path.join(root, 'docs', 'tools.md'), toolsMarkdown());
