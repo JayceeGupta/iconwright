@@ -269,13 +269,15 @@ async function brandAssets() {
 // Home page showcase: real requests, each rendered as the taskbar after the agent's change.
 const SHOWCASE = [
   { id: 'white', tab: 'All white', ask: 'Make all my taskbar icons white.',
-    call: 'app_apply_icon(apps: [all pinned], source: "app", style: "color=white")', did: 'Each icon is redrawn in white from the app’s own logo.',
+    call: ['app_apply_icon(apps: [all pinned], source: "app", style: "color=white")', 'app_apply_icon(apps: ["Steam"], source: "simple-icons:steam", style: "color=white")'],
+    did: 'Each icon is redrawn in white from its own artwork. Steam’s icon is a solid badge that would turn into a white disc, so the agent used Steam’s logo for that one.',
     render: () => ({ look: { color: 'white' } }) },
   { id: 'tiles', tab: 'Mac-style tiles', ask: 'Put every icon on a white rounded tile, like a Mac.',
     call: 'app_apply_icon(apps: [all pinned], source: "app", style: "bg=white shape=squircle")', did: 'Original colors, each on the same smooth-cornered tile.',
     render: () => ({ look: { bg: '#ffffff', shape: 'squircle', padding: 0.2 } }) },
   { id: 'tint', tab: 'Match the wallpaper', ask: 'Tint them to match my wallpaper.',
-    call: 'app_apply_icon(apps: [all pinned], source: "app", style: "color=#7cc0ff")', did: 'One color picked from the wallpaper, applied to every app.',
+    call: ['app_apply_icon(apps: [all pinned], source: "app", style: "color=#7cc0ff")', 'app_apply_icon(apps: ["Steam"], source: "simple-icons:steam", style: "color=#7cc0ff")'],
+    did: 'One color picked from the wallpaper, applied to every app (Steam from its logo, as above).',
     render: () => ({ look: { color: '#7cc0ff' } }) },
   { id: 'order', tab: 'Reorder', ask: 'Move Spotify next to Steam.',
     call: 'taskbar_pins(order: ["Steam", "Spotify"], position: 2)', did: 'Pins are rearranged in one Explorer restart. Nothing else changes.',
@@ -291,7 +293,7 @@ function showcaseHtml() {
   const tabs = SHOWCASE.map((d, i) => `<button type="button" role="tab" id="ask-${d.id}" aria-controls="show-${d.id}" aria-selected="${i === 0}"${i ? ' tabindex="-1"' : ''}>${esc(d.tab)}</button>`).join('');
   const panels = SHOWCASE.map((d, i) => `<div class="show-panel" role="tabpanel" id="show-${d.id}" aria-labelledby="ask-${d.id}"${i ? ' hidden' : ''}>
       <p class="bubble you">${esc(d.ask)}</p>
-      <p class="bubble call"><code>${esc(d.call)}</code></p>
+      ${[d.call].flat().map((c) => `<p class="bubble call"><code>${esc(c)}</code></p>`).join('')}
       <figure class="bar after"><figcaption>After</figcaption>${taskbarPicture(d.id, `The same taskbar after: ${d.ask}`, i > 0)}</figure>
       <p class="did">${esc(d.did)}</p>
     </div>`).join('\n    ');
@@ -327,7 +329,7 @@ async function demoImages() {
     const ORDER = ['explorer', 'edge', 'vscode', 'spotify', 'discord'];
     const ROCKET = { source: 'ph:rocket-launch-fill', color: 'white', bg: 'linear-gradient(135deg,#7b3f92,#2d5ba6)', shape: 'squircle' };
     const taskbar = async (name, { look = {}, order = ORDER, me } = {}) => {
-      const master = await renderMaster(me ?? { source: nb('steam'), padding: 0, ...look });
+      const master = await renderMaster(me ?? { source: nb(look.color ? 'steam-glyph' : 'steam'), padding: 0, ...look });
       const png = await renderScenes({ master, label: 'Steam', scenes: ['taskbar'], theme: 'dark', scale: 2, bare: true,
         neighbors: order.map((k) => ({ name: APP[k][0], source: nb(APP[k][1]), ...look })) });
       await writeFile(path.join(dist, 'img', `taskbar-${name}.png`), png);
