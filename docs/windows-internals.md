@@ -1,6 +1,6 @@
 # Windows internals (verified 2026-10-27, Win11 26200 + StartAllBack 3.9)
 
-Hard-won findings behind `scripts/win/`, for contributors. Read this before changing the pin, icon or
+Findings behind `scripts/win/`, for contributors. Read this before changing the pin, icon or
 desktop logic. For a plain-language overview, see [How it works](how-it-works.md).
 
 ## Where a taskbar button's icon comes from

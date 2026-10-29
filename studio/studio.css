@@ -1,17 +1,17 @@
-/* iconwright studio. Palette: polished steel + temper colors (straw, bronze, plum, temper blue). */
+/* iconwright studio. Steel with the brand spectrum (straw, bronze, plum, blue). */
 :root {
   --steel: #edeff2;
   --plate: #f7f8fa;
   --rule: #d6dae0;
   --graphite: #25282d;
   --muted: #5e6470;
-  --temper-blue: #2d5ba6;
-  --temper-blue-ink: #1f4583;
+  --blue: #2d5ba6;
+  --blue-ink: #1f4583;
   --straw: #e9c46a;
   --bronze: #c47335;
   --plum: #7b3f92;
   --danger: #a3302a;
-  --temper: linear-gradient(135deg, var(--straw), var(--bronze) 36%, var(--plum) 70%, var(--temper-blue));
+  --spectrum: linear-gradient(135deg, var(--straw), var(--bronze) 36%, var(--plum) 70%, var(--blue));
   --r-panel: 14px;
   --r-ctl: 8px;
   font: 14px/1.45 Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
@@ -22,7 +22,7 @@
 body { margin: 0; min-height: 100vh; }
 h2 { font: 600 13px/1.2 Inter, system-ui, sans-serif; margin: 0 0 10px; color: var(--graphite); }
 button, input, select, textarea { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--temper-blue); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 [hidden] { display: none !important; }
 
@@ -38,8 +38,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* buttons */
 .btn { border: 1px solid var(--rule); background: #fff; border-radius: var(--r-ctl); padding: 7px 12px; cursor: pointer; white-space: nowrap; }
 .btn:hover { border-color: #b9bfc8; }
-.btn.primary { background: var(--temper-blue); border-color: var(--temper-blue); color: #fff; }
-.btn.primary:hover { background: var(--temper-blue-ink); }
+.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn.primary:hover { background: var(--blue-ink); }
 .btn.ghost { background: transparent; }
 .btn.wide { width: 100%; }
 .btn:disabled { opacity: .55; cursor: progress; }
@@ -62,7 +62,7 @@ textarea { width: 100%; font-family: Consolas, ui-monospace, monospace; font-siz
 .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; margin: 10px 0; }
 .results button { aspect-ratio: 1; border: 1px solid transparent; border-radius: 10px; background: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; }
 .results button:hover { border-color: var(--rule); }
-.results button[aria-selected="true"] { border-color: var(--temper-blue); box-shadow: 0 0 0 1px var(--temper-blue); }
+.results button[aria-selected="true"] { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
 .results img { width: 28px; height: 28px; }
 .apps button { aspect-ratio: auto; padding: 8px 4px; gap: 4px; background: #26282c; }
 .apps button:hover { border-color: #4a4e56; }
@@ -94,7 +94,7 @@ textarea { width: 100%; font-family: Consolas, ui-monospace, monospace; font-siz
 .scenes-head input { width: 150px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .chips button { border: 1px solid var(--rule); background: #fff; border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; }
-.chips button[aria-pressed="true"] { border-color: var(--temper-blue); color: var(--temper-blue-ink); background: #e8eef8; }
+.chips button[aria-pressed="true"] { border-color: var(--blue); color: var(--blue-ink); background: #e8eef8; }
 .scene-img { overflow: auto; }
 .scene-img img { display: block; max-width: 100%; height: auto; border-radius: 8px; }
 .scene-img img:not([src]) { display: none; }
@@ -106,7 +106,7 @@ textarea { width: 100%; font-family: Consolas, ui-monospace, monospace; font-siz
 .row { display: flex; align-items: center; gap: 8px; }
 .check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 input[type=color] { width: 38px; height: 32px; border: 1px solid var(--rule); border-radius: var(--r-ctl); padding: 2px; background: #fff; cursor: pointer; }
-input[type=range] { width: 100%; accent-color: var(--temper-blue); }
+input[type=range] { width: 100%; accent-color: var(--blue); }
 .mini { width: 92px; font-family: Consolas, ui-monospace, monospace; font-size: 12px; }
 .seg { display: flex; gap: 4px; flex-wrap: wrap; }
 .shapes button { padding: 6px 10px; }
