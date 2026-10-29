@@ -45,7 +45,7 @@ function schemaType(p) {
   if (p.anyOf) return p.anyOf.map(schemaType).join(' \\| ');
   if (p.const !== undefined) return String(p.const);
   if (p.type === 'array') return `${schemaType(p.items ?? {})}[]`;
-  if (p.type === 'object') return 'object';
+  if (p.type === 'object') return p.properties ? `{ ${Object.entries(p.properties).map(([k, v]) => `${k}: ${schemaType(v)}`).join(', ')} }` : 'object';
   return p.type ?? 'any';
 }
 function toolsMarkdown() {

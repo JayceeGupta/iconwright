@@ -28,7 +28,7 @@ Tell your agent what you want. iconwright finds the artwork among 200,000+ open-
 - **Restyle app icons**, one app or your whole taskbar in one call (for example: every icon white, each from its own logo).
 - **Pin, unpin and reorder** taskbar apps in a single Explorer restart, with a dry run first if you like.
 - **Desktop**: change icons, arrange, resize, show and hide system icons, save and restore layouts.
-- **Undo everything**: originals are recorded and pin lists backed up before every change.
+- **Undo**: original icons are recorded and the pinned-apps list is backed up before every change. Save a desktop layout before rearranging icons.
 
 ## Install
 

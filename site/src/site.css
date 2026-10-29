@@ -143,3 +143,8 @@ footer a { color: var(--muted); }
   .side a { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 640px) {
+  .top { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .top nav { gap: 6px 18px; }
+  .hero .lede { font-size: 17px; }
+}

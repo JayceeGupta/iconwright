@@ -47,7 +47,7 @@ approval_mode = "approve"
 
 ### Any other MCP client
 
-Clone and install as above, then add a **stdio** server to your client's MCP settings:
+Clone the repository and run `npm install` as above. Add a **stdio** server to your client's MCP settings, with the path to your clone, then restart or reconnect the client:
 
 ```json
 {

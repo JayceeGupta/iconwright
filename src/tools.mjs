@@ -264,7 +264,7 @@ export const TOOLS = [
   {
     name: 'desktop_move', group: 'Desktop', windows: true, title: 'Move desktop icons',
     description: 'Move desktop icons to positions (snap to the grid). Coordinates as in desktop_info.',
-    input: { moves: z.array(z.object({ item: z.string().min(1).describe('Name or path from desktop_info'), x: z.number().int(), y: z.number().int() }).strict()).min(1) },
+    input: { moves: z.array(z.object({ item: z.string().min(1).describe('Name or path from desktop_info'), x: z.number().int(), y: z.number().int() }).strict()).min(1).describe('Each: item (name or path from desktop_info), x and y in pixels') },
     annotations: CHANGE,
     async handler({ moves }, ctx) {
       const results = [];

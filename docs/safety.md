@@ -15,7 +15,7 @@ iconwright changes real settings on your PC. This page lists exactly what it tou
 | Desktop folder icon | A hidden `desktop.ini` file inside the folder; the folder is marked read-only (the standard Windows way to show a custom folder icon) | `restore_icons` |
 | This PC, Recycle Bin and other system icons | A per-user registry override (`HKCU\…\Explorer\CLSID\{id}\DefaultIcon`) | `restore_icons` |
 | Show or hide system desktop icons | The same setting as *Settings → Personalization → Themes → Desktop icon settings* | `desktop_settings` |
-| Desktop icon positions, size, options | Explorer's saved desktop layout | `desktop_layout` load, if you saved one first |
+| Desktop icon positions, size, auto-arrange | Explorer's saved desktop layout | `desktop_layout` load (save a layout first) |
 
 iconwright only changes settings for **your Windows user**. It never needs administrator rights. Shortcuts shared by all users (in `C:\ProgramData`) are skipped and reported as `skipped`.
 

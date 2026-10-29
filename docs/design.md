@@ -50,7 +50,7 @@ On Windows, the taskbar and Start scenes put your own pinned apps around the ico
 
 | Format | You get |
 | --- | --- |
-| `ico` | A Windows icon with 16, 24, 32, 48, 64, 128 and 256 px images |
+| `ico` | A Windows icon with 16, 20, 24, 32, 40, 48, 64, 128 and 256 px images |
 | `png` | One PNG, 256 px unless you pick a size |
 | `icns` | A macOS icon, 16 to 1024 px including Retina sizes |
 | `web` | A folder with `favicon.ico`, `apple-touch-icon.png`, 192 and 512 px app icons, a maskable icon for Android, `site.webmanifest`, and `head.html` with the tags to paste into your page |

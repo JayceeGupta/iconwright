@@ -31,7 +31,7 @@ desktop logic. For a plain-language overview, see [How it works](how-it-works.md
   color, from `Explorer\Accent\AccentPalette`). The script samples the taskbar color before/after and
   only flags a change from a custom color to a stock one, and only if a styling tool was running
   (without one, the accent shade can drift between restarts). Styling tools that died are relaunched.
-  `--cooldown <s>` spaces restarts for long batches. Context changes (TranslucentTB going clear on the
+  `pins --restart-cooldown <s>` (MCP: `restartCooldown`) spaces out restarts; `pin`, `unpin`, `reorder` and `refresh` take `--cooldown <s>`. Context changes (TranslucentTB going clear on the
   desktop) are normal and not flagged.
 - MCP clients start servers with a trimmed environment (no `ProgramData`/`WINDIR`): resolve folders via
   `[Environment]::GetFolderPath`, never env vars.

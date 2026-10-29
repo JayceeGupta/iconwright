@@ -175,7 +175,7 @@ Changes the PC. Windows only.
 
 | Argument | Type | Description |
 | --- | --- | --- |
-| `moves` (required) | object[] |  |
+| `moves` (required) | { item: string, x: integer, y: integer }[] | Each: item (name or path from desktop_info), x and y in pixels |
 
 ### `desktop_arrange`
 
