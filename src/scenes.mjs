@@ -11,7 +11,7 @@ export { SCENES, DEFAULT_SCENES };
 const NEIGHBOR_DIR = fileURLToPath(new URL('../assets/neighbors/', import.meta.url));
 // Scenes that show Windows, where the user's own pinned apps can stand in for the samples.
 const WINDOWS_SCENES = new Set(['taskbar', 'start', 'desktop', 'explorer']);
-const SWAPPABLE = new Set(['edge', 'vscode', 'spotify', 'discord', 'steam', 'telegram', 'slack', 'figma', 'whatsapp', 'obsidian']);
+const SWAPPABLE = new Set(['explorer', 'edge', 'vscode', 'spotify', 'discord', 'steam', 'telegram', 'slack', 'figma', 'whatsapp', 'obsidian']);
 
 // Sample app masters never change: render each once per process.
 const sampleMasters = new Map();
@@ -23,9 +23,13 @@ function sampleMaster(key) {
   return sampleMasters.get(key);
 }
 
+// Resized copies, keyed by the image itself (a new render never reuses an old one's pixels).
 const sized = new Map();
-async function at1(cacheKey, png, px) {
-  const k = `${cacheKey}@${px}`;
+const ids = new WeakMap();
+let nextId = 0;
+async function at1(png, px) {
+  if (!ids.has(png)) ids.set(png, ++nextId);
+  const k = `${ids.get(png)}@${px}`;
   if (!sized.has(k)) { sized.set(k, resizePng(png, px)); if (sized.size > 400) sized.delete(sized.keys().next().value); }
   return sized.get(k);
 }
@@ -74,7 +78,7 @@ async function drawScene(name, c) {
       const px = S(n.size);
       const master = n.app === 'me' ? c.master : (mine.get(n.app)?.master ?? await sampleMaster(n.app));
       if (!master) continue;
-      let png = await at1(n.app === 'me' ? 'me' : (mine.has(n.app) ? `u:${mine.get(n.app).name}` : n.app), master, px);
+      let png = await at1(master, px);
       if (n.mask) png = await maskedIcon(png, px, n.mask);
       if (n.shadow) { const sh = await dropShadow(png, px); layers.push({ input: sh.input, left: S(n.x) + sh.dx, top: S(n.y) + sh.dy }); }
       layers.push({ input: png, left: S(n.x), top: S(n.y) });
@@ -103,13 +107,15 @@ async function drawScene(name, c) {
  * label (app name), scenes (default DEFAULT_SCENES), neighbors ([{ name, source, ...style }],
  * the user's pinned apps), scale (1-2, default 1), theme ('dark' | 'light'; default per scene).
  */
-export async function renderScenes({ master, label = 'My App', scenes = DEFAULT_SCENES, neighbors, scale = 1, theme }) {
+export async function renderScenes({ master, label = 'My App', scenes = DEFAULT_SCENES, neighbors, scale = 1, theme, bare = false }) {
   const bad = scenes.filter((n) => !SCENES.includes(n));
   if (bad.length) throw new Error(`unknown scene: ${bad.join(', ')} (use ${SCENES.join(', ')})`);
   const users = neighbors?.length
     ? (await Promise.all(neighbors.map(async (n) => ({ name: n.name, master: await renderMaster({ padding: 0.06, ...n }).catch(() => null) })))).filter((n) => n.master)
     : null;
   const c = { master, label, scale, theme, neighbors: users };
+  // bare: one scene, no title or frame (for page images).
+  if (bare) return (await drawScene(scenes[0], c)).png;
   const panels = [];
   for (const name of scenes) {
     const p = await drawScene(name, c);

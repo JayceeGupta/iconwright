@@ -260,7 +260,7 @@ dialog::backdrop { background: rgba(15, 17, 20, .45); }
   .crumb, .title, .mode, #copyAgent span, #downloadOpen span, .history, .hint-key { display: none !important; }
   #copyAgent, #downloadOpen { width: 38px; padding: 0; }
   .bar { gap: 6px; }
-  .layout { display: flex; flex-direction: column; gap: 0; padding: 0 0 calc(70px + env(safe-area-inset-bottom)); }
+  .layout { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0 0 calc(70px + env(safe-area-inset-bottom)); }
   .center { display: contents; }
   .stage { order: -1; position: sticky; top: var(--bar-h); z-index: 20; border-radius: 0; border-width: 0 0 1px; box-shadow: 0 6px 16px -14px rgba(0,0,0,.4); grid-template-columns: 116px minmax(0, 1fr); gap: 10px 12px; padding: 10px 12px; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
   .canvas { width: 116px; border-radius: 13px; }

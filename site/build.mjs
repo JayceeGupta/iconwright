@@ -275,6 +275,16 @@ async function demoImages() {
     out[name] = `<img src="/img/${name}.png" width="${width}" height="${height}" alt="${esc(alt)}" loading="lazy">`;
   };
   try {
+    // Hero: one taskbar before and after "make all my taskbar icons white", 2x for sharp screens.
+    const nb = (file) => path.join(root, 'assets', 'neighbors', `${file}.svg`);
+    const apps = [['File Explorer', 'file-explorer'], ['Microsoft Edge', 'edge'], ['Visual Studio Code', 'vscode'], ['Spotify', 'spotify'], ['Discord', 'discord']];
+    for (const [name, white] of [['before', false], ['after', true]]) {
+      const look = white ? { color: 'white' } : {};
+      const master = await renderMaster({ source: nb('steam'), padding: 0, ...look });
+      const png = await renderScenes({ master, label: 'Steam', scenes: ['taskbar'], theme: 'dark', scale: 2, bare: true,
+        neighbors: apps.map(([n, f]) => ({ name: n, source: nb(f), ...look })) });
+      await writeFile(path.join(dist, 'img', `taskbar-${name}.png`), png);
+    }
     const found = await searchIconsDetailed('rocket', { limit: 24 });
     await save('search', (await searchSheet(found.icons)).png, 'A numbered sheet of 24 rocket icons');
     const rockets = ['ph:rocket-launch-fill', 'mdi:rocket-launch-outline', 'tabler:rocket'];

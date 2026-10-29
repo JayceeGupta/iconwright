@@ -264,7 +264,9 @@ function explorer({ theme, id, label, nm }) {
   nodes.push({ t: 'text', x: 40, y: 57, text: 'New', size: 12, color: t.text, font: 'win' });
   nodes.push({ t: 'text', x: 312, y: 57, text: 'Sort', size: 12, color: t.text, font: 'win' });
   nodes.push({ t: 'text', x: 362, y: 57, text: 'View', size: 12, color: t.text, font: 'win' });
-  nodes.push({ t: 'text', x: 172, y: 102, text: 'This PC  ›  Desktop', size: 12, color: t.text, font: 'win' });
+  nodes.push({ t: 'text', x: 172, y: 102, text: 'This PC', size: 12, color: t.text, font: 'win' });
+  nodes.push({ t: 'text', x: 222, y: 102, text: '›', size: 12, color: t.sub, font: 'win' });
+  nodes.push({ t: 'text', x: 236, y: 102, text: 'Desktop', size: 12, color: t.text, font: 'win' });
   nodes.push({ t: 'text', x: 558, y: 102, text: 'Search Desktop', size: 12, color: t.sub, font: 'win' });
   const nav = [['Home', 148], ['Desktop', 182], ['Downloads', 216], ['Documents', 250], ['Pictures', 284], ['This PC', 330]];
   for (const [name, y] of nav) {
@@ -281,7 +283,8 @@ function explorer({ theme, id, label, nm }) {
     nodes.push({ t: 'text', x: 580, y: y + 8, text: 'Shortcut', size: 12, color: t.sub, font: 'win' });
     nodes.push({ t: 'text', x: 666, y: y + 8, text: `${2 + (k % 2)} KB`, size: 12, color: t.sub, font: 'win' });
   });
-  nodes.push({ t: 'text', x: 16, y: H - 20, text: '6 items     1 item selected  2.15 KB', size: 12, color: t.sub, font: 'win' });
+  nodes.push({ t: 'text', x: 16, y: H - 20, text: '6 items', size: 12, color: t.sub, font: 'win' });
+  nodes.push({ t: 'text', x: 80, y: H - 20, text: '1 item selected  2.15 KB', size: 12, color: t.sub, font: 'win' });
   return { width: W, height: H, nodes };
 }
 
@@ -333,7 +336,10 @@ function dock({ id, label }) {
   body += rect(sepX, dy + 12, 1, size - 8, 'rgba(255,255,255,0.5)');
   // Trash: a simple wire bin.
   const tx = sepX + 15, ty = dy + pad;
-  body += `<rect x="${tx + 10}" y="${ty + 8}" width="${size - 20}" height="${size - 12}" rx="6" fill="rgba(255,255,255,0.55)" stroke="rgba(255,255,255,0.9)"/>` + stroke(`M${tx + 18} ${ty + 16}v28M${tx + 28} ${ty + 16}v28M${tx + 38} ${ty + 16}v28`, 'rgba(120,120,130,0.55)', 1.4);
+  body += `<defs><linearGradient id="${id('t')}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#d9dde4"/><stop offset="0.5" stop-color="#ffffff"/><stop offset="1" stop-color="#c9ced7"/></linearGradient></defs>` +
+    `<path d="M${tx + 9} ${ty + 12}h${size - 18}l-3 ${size - 16}a4 4 0 0 1 -4 3.5h${-(size - 32)}a4 4 0 0 1 -4 -3.5z" fill="url(#${id('t')})" opacity="0.92"/>` +
+    `<ellipse cx="${tx + size / 2}" cy="${ty + 12}" rx="${(size - 18) / 2}" ry="3.2" fill="#eef0f4" stroke="#b8bec8" stroke-width="0.8"/>` +
+    stroke(`M${tx + 20} ${ty + 18}l1 ${size - 26}M${tx + size / 2} ${ty + 18}v${size - 26}M${tx + size - 20} ${ty + 18}l-1 ${size - 26}`, 'rgba(140,146,156,0.5)', 1);
   // Running dots and the name tooltip above our icon.
   const mine = apps.indexOf('me'), mx = dx + pad + mine * (size + gap) + size / 2;
   for (const k of [0, 1, mine]) body += `<circle cx="${dx + pad + k * (size + gap) + size / 2}" cy="${dy + size + pad + 4}" r="2" fill="rgba(30,30,35,0.75)"/>`;
@@ -363,7 +369,7 @@ function phoneStatus(nodes, W, color, font) {
 }
 
 function ios({ id, label, nm }) {
-  const W = 393, H = 520, nodes = [];
+  const W = 393, H = 452, nodes = [];
   nodes.push({ t: 'svg', body: `<defs><linearGradient id="${id('w')}" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#1e3c72"/><stop offset="0.5" stop-color="#6a4c93"/><stop offset="1" stop-color="#f08a5d"/></linearGradient></defs>` + rect(0, 0, W, H, `url(#${id('w')})`) });
   phoneStatus(nodes, W, '#ffffff', 'ios');
   const grid = [['photos', 'maps', 'me', 'youtube'], ['gmail', 'netflix', 'appstore', 'mspotify']];

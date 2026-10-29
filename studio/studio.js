@@ -640,6 +640,13 @@ async function useFile(file) {
 
 async function init() {
   wire();
+  // A pasted or clicked link to another design in the same tab.
+  window.addEventListener('hashchange', async () => {
+    state.style = {};
+    const source = loadHash();
+    syncControls();
+    if (source && source !== state.source) await setSource(source); else { schedule(); commit(); }
+  });
   buildSceneChips();
   drawKept();
   try { info = await api('info'); } catch { /* hosted studio without the API still draws */ }

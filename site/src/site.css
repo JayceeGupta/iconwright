@@ -96,9 +96,10 @@ pre:hover .copy, .copy:focus-visible { opacity: 1; }
 
 /* ---------- home ---------- */
 .eyebrow { font: 600 12.5px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
-.hero { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 56px; align-items: center; padding: 72px 24px 88px; }
-.hero h1 { font: 700 clamp(38px, 5.6vw, 68px)/1.02 var(--display); letter-spacing: -0.04em; margin: 0 0 22px; max-width: 12ch; text-wrap: balance; }
-.hero .lede { font-size: 19px; line-height: 1.6; color: var(--ink-2); max-width: 34em; margin: 0 0 30px; }
+.hero { max-width: 1000px; margin: 0 auto; display: grid; justify-items: center; text-align: center; padding: 72px 24px 88px; }
+.hero .actions { justify-content: center; width: 100%; max-width: 520px; }
+.hero h1 { font: 700 clamp(38px, 5.6vw, 68px)/1.02 var(--display); letter-spacing: -0.04em; margin: 0 auto 22px; max-width: 16ch; text-wrap: balance; }
+.hero .lede { font-size: 19px; line-height: 1.6; color: var(--ink-2); max-width: 34em; margin: 0 auto 30px; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
 .fine { font-size: 14px; color: var(--muted); margin: 0; }
 .specimen { background: var(--surface); border: 1px solid var(--rule); border-radius: 24px; padding: 18px; display: grid; gap: 14px; max-width: 420px; justify-self: end; width: 100%; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 18px 40px -18px rgba(20,30,50,.18); }
@@ -141,6 +142,14 @@ pre:hover .copy, .copy:focus-visible { opacity: 1; }
 .matrix th, .matrix td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; }
 .matrix th { font-weight: 600; }
 .steps .matrix { font-size: 14px; }
+
+/* hero demo: the taskbar before and after one request */
+.demo { max-width: 1000px; margin: -40px auto 0; padding: 0 24px 88px; display: grid; gap: 14px; }
+.demo-row { margin: 0; position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--rule); box-shadow: 0 18px 40px -22px rgba(20,30,50,.45); }
+.demo-row img { display: block; width: 100%; height: auto; }
+.demo-row figcaption { position: absolute; top: 8px; left: 10px; font: 600 11.5px/1 var(--sans); letter-spacing: .04em; text-transform: uppercase; color: #fff; background: rgba(0,0,0,.45); padding: 5px 8px; border-radius: 6px; }
+.demo-ask { margin: 0; display: flex; justify-content: center; }
+.demo-ask span { background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 18px 18px 18px 4px; font-weight: 500; }
 
 /* ---------- footer ---------- */
 .foot { border-top: 1px solid var(--rule); margin-top: 48px; }
