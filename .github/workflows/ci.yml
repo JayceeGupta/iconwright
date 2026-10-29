@@ -26,7 +26,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: CLI smoke test (icon creation works on every OS)
-        run: node bin/iconwright.mjs make --source test/fixtures/logo.svg --name ci --out ci-out --color "#3b82f6"
+        run: node bin/iconwright.mjs make test/fixtures/logo.svg --name ci --out ci-out --style "color=#3b82f6 bg=#ffffff shape=squircle" --formats ico,icns,web
       - name: Windows commands refuse cleanly off Windows
         if: runner.os != 'Windows'
         shell: bash

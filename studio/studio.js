@@ -165,7 +165,7 @@ async function search(query, more = false) {
       $('results').append(b);
     }
     const licenses = [...new Set(Object.values(r.collections).map((c) => c.license).filter(Boolean))];
-    $('searchNote').textContent = r.icons.length || more ? `${r.total} found${licenses.length ? `. Licenses: ${licenses.join(', ')}` : ''}.` : 'Nothing found. Try a simpler word.';
+    $('searchNote').textContent = r.icons.length || more ? `Showing ${searchStart}${licenses.length ? `. Licenses: ${licenses.join(', ')}` : ''}.` : 'Nothing found. Try a simpler word.';
     $('more').hidden = searchStart >= r.total;
   } catch (e) { if (seq === searchSeq) $('searchNote').textContent = e.message; }
   finally { if (seq === searchSeq) $('more').disabled = false; }

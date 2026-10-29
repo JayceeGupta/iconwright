@@ -45,7 +45,7 @@ test('stdio MCP server exposes tools and returns generated icon preview', async 
   assert.ok(preview.content.some((block) => block.type === 'image' && block.mimeType === 'image/png'));
 
   const promptList = await client.listPrompts();
-  assert.equal(promptList.prompts.length, 4);
+  assert.equal(promptList.prompts.length, process.platform === 'win32' ? 4 : 1);   // off Windows only design-icon applies
   const prompt = await client.getPrompt({ name: 'design-icon', arguments: { idea: 'x' } });
   assert.match(prompt.messages[0].content.text, /Design an icon: x/);
 

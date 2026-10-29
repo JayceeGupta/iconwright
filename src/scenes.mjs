@@ -78,7 +78,7 @@ async function taskbar(c) {
       layers.push({ input: png, left: s(x), top: s(y0 + 12) });
     }
     layers.push(at(await text('9:41', { size: s(12), color: t.text }), s(W - 46), s(y0 + 9)));
-    layers.push(at(await text('28/10/2026', { size: s(12), color: t.text }), s(W - 74), s(y0 + 25)));
+    layers.push(at(await text(new Date().toLocaleDateString('en-GB'), { size: s(12), color: t.text }), s(W - 74), s(y0 + 25)));
     rows.push(...layers);
   }
   return { width: s(W), height: s(2 * H + 8), layers: rows };
