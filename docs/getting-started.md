@@ -24,9 +24,7 @@ Restart Claude Code if it asks. You get the MCP tools, a skill that teaches Clau
 ### Codex
 
 ```bash
-git clone https://github.com/JayceeGupta/iconwright
-cd iconwright && npm install
-codex mcp add iconwright -- node "$PWD/bin/iconwright-mcp.mjs"
+codex mcp add iconwright -- npx -y iconwright mcp
 ```
 
 Codex asks before each tool call. To let it run the read-only tools without asking, add them to `~/.codex/config.toml`:
@@ -47,12 +45,12 @@ approval_mode = "approve"
 
 ### Any other MCP client
 
-Clone the repository and run `npm install` as above. Add a **stdio** server to your client's MCP settings, with the path to your clone, then restart or reconnect the client:
+Add a **stdio** server to your client's MCP settings, then restart or reconnect the client. `npx` downloads iconwright the first time and keeps it cached:
 
 ```json
 {
   "mcpServers": {
-    "iconwright": { "command": "node", "args": ["C:/path/to/iconwright/bin/iconwright-mcp.mjs"] }
+    "iconwright": { "command": "npx", "args": ["-y", "iconwright", "mcp"] }
   }
 }
 ```
@@ -93,7 +91,7 @@ To undo:
 On Windows, ask the agent to run **doctor**, or run it yourself:
 
 ```bash
-node bin/iconwright.mjs doctor
+npx iconwright doctor
 ```
 
 It checks your Windows and PowerShell versions, the pinned-apps format, your backups and any taskbar mods, and changes nothing.

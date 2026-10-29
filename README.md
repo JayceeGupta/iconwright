@@ -39,13 +39,19 @@ Say “make all my taskbar icons white”, “pin Spotify next to Chrome” or �
 /plugin install iconwright@icon-playground
 ```
 
-**Codex, Cursor, VS Code and other MCP clients**: clone, install, and register the stdio server:
+**Codex**:
 
 ```bash
-git clone https://github.com/JayceeGupta/iconwright
-cd iconwright && npm install
-# then point your client at:  node <path>/iconwright/bin/iconwright-mcp.mjs
+codex mcp add iconwright -- npx -y iconwright mcp
 ```
+
+**Cursor, VS Code and other MCP clients**: add a stdio server to your client's MCP settings:
+
+```json
+{ "mcpServers": { "iconwright": { "command": "npx", "args": ["-y", "iconwright", "mcp"] } } }
+```
+
+**Command line**: `npx -y iconwright --help`.
 
 **Or let your agent do it**: paste the [setup prompt](docs/agents.md#setup-prompt).
 
@@ -64,9 +70,9 @@ Requires Node.js 20+. Taskbar and desktop features need Windows 10 or 11 and no 
 Or from a terminal:
 
 ```bash
-node bin/iconwright.mjs design ph:rocket-launch-fill tabler:rocket --styles "color=white bg=#2d5ba6 shape=squircle|color=#e9c46a bg=#1f2228 shape=circle" --out grid.png
-node bin/iconwright.mjs make ph:rocket-launch-fill --style "color=white bg=#2d5ba6 shape=squircle" --formats ico,icns,web
-node bin/iconwright.mjs studio
+npx iconwright design ph:rocket-launch-fill tabler:rocket --styles "color=white bg=#2d5ba6 shape=squircle|color=#e9c46a bg=#1f2228 shape=circle" --out grid.png
+npx iconwright make ph:rocket-launch-fill --style "color=white bg=#2d5ba6 shape=squircle" --formats ico,icns,web
+npx iconwright studio
 ```
 
 ## Docs
@@ -93,4 +99,6 @@ iconwright has been tested on one Windows 11 PC. If you use macOS, Linux, Window
 
 ## License
 
-MIT. Icons from Iconify keep their own licenses, which iconwright reports with every search. The bundled Inter font is under the SIL Open Font License.
+MIT. Icons from Iconify keep their own licenses, which iconwright reports with every search. The bundled Inter font is under the SIL Open Font License, and the sample app logos in the scene mockups are listed in [assets/neighbors](assets/neighbors/README.md); they are trademarks of their owners.
+
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md), the [code of conduct](CODE_OF_CONDUCT.md) and [SECURITY.md](SECURITY.md).

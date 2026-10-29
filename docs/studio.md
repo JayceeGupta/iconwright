@@ -8,7 +8,7 @@ There are two ways to use it:
 
 | | Online studio | Local studio |
 | --- | --- | --- |
-| Open it | [iconwright studio](/studio/) | `node bin/iconwright.mjs studio`, or ask your agent to “open the studio” |
+| Open it | [iconwright studio](/studio/) | `npx iconwright studio`, or ask your agent to “open the studio” |
 | Artwork | Iconify icons and pasted SVG | Also your own files and, on Windows, your installed apps' icons |
 | Get the result | Downloads | Downloads, saving to a folder, and applying to apps on Windows |
 | Install needed | No | Yes |

@@ -1,20 +1,11 @@
 # Releasing
 
-Checklists for the maintainer. The npm package is prepared but not published yet.
-
-## Going public (once)
-
-1. Make the repository public: `gh repo edit JayceeGupta/iconwright --visibility public --accept-visibility-change-consequences`.
-2. Create the issue labels the forms use: `gh label create "test report" --color 2d5ba6` (`bug` exists by default).
-3. Check the Claude Code install from GitHub in a clean profile: `/plugin marketplace add JayceeGupta/iconwright`, `/plugin install iconwright@icon-playground`, then ask for `doctor`.
-4. Publish to npm (below), then update the install docs.
+Checklists for the maintainer. The package is published on npm as [`iconwright`](https://www.npmjs.com/package/iconwright): `npx -y iconwright mcp` starts the MCP server, and `npx -y iconwright <command>` runs any CLI command.
 
 ## Publishing to npm
 
-The npm package is `iconwright`. `npx -y iconwright mcp` starts the MCP server, and `npx -y iconwright <command>` runs any CLI command.
-
 1. `npm test` passes and CI is green on main.
-2. Bump `version` in `package.json` and `.claude-plugin/plugin.json`, and add a `CHANGELOG.md` entry.
+2. Bump `version` in `package.json` and `.claude-plugin/plugin.json` (and run `npm install` to update the lockfile), and add a `CHANGELOG.md` entry.
 3. Check the package contents and try it from the tarball:
 
    ```bash
@@ -24,24 +15,11 @@ The npm package is `iconwright`. `npx -y iconwright mcp` starts the MCP server, 
    ```
 
    Use a path without spaces for the tarball; npx mishandles local tarball paths with spaces.
-4. `npm login`, then `npm publish --access public`.
-5. Tag the release: `git tag v<version> && git push --tags`, and create a GitHub release from the changelog entry.
+4. `npm publish --access public` (needs `npm login`, or a granular token with publish rights).
+5. Tag the release: `git tag v<version> && git push --tags`, and create a GitHub release from the changelog entry (`gh release create v<version> --notes-file <notes>`).
 6. Try it from the registry: `npx -y iconwright mcp` in an MCP client, and `npx -y iconwright report`.
 
-### Install docs to update after the first publish
-
-Replace the clone-and-register steps in `README.md`, `docs/getting-started.md` and the setup prompt in `docs/agents.md` with:
-
-```bash
-claude mcp add iconwright -- npx -y iconwright mcp      # Claude Code without the plugin
-codex mcp add iconwright -- npx -y iconwright mcp       # Codex
-```
-
-```json
-{ "mcpServers": { "iconwright": { "command": "npx", "args": ["-y", "iconwright", "mcp"] } } }
-```
-
-The Claude Code plugin keeps running from its own checkout (`.claude-plugin/plugin.json`), so it doesn't depend on npm.
+The Claude Code plugin runs from its own checkout (`.claude-plugin/plugin.json`), so it doesn't depend on npm.
 
 ## Every release
 

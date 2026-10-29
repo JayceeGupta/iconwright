@@ -1,7 +1,7 @@
 {
   "name": "iconwright",
-  "version": "0.2.0",
-  "description": "An MCP server that restyles your Windows taskbar and desktop: change any app's icon, pin, unpin and reorder taskbar apps, and arrange desktop icons, with undo for everything. It also designs custom icons from 200,000+ open-source icons, previews them on a real taskbar, desktop and phone, and exports .ico, .icns and favicons.",
+  "version": "0.3.0",
+  "description": "An MCP server that restyles your Windows taskbar and desktop: app icons, pins and desktop layout, with undo. Also designs custom icons, previews them in place and exports .ico, .icns and favicons.",
   "license": "MIT",
   "author": "Jayam Gupta",
   "type": "module",
@@ -36,10 +36,9 @@
     "src/",
     "assets/",
     "studio/",
-    "scripts/",
+    "scripts/win/",
     "skills/",
     ".claude-plugin/",
-    ".mcp.json",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"

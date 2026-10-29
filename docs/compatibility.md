@@ -57,7 +57,7 @@ All on one PC: **Windows 11 build 26200**, 200% display scaling, one monitor, En
 - The running-window icon of **Store apps**.
 - Installing the Claude Code plugin **from GitHub** (only a local copy was tested).
 
-If you try iconwright on one of these, please [open an issue](https://github.com/JayceeGupta/iconwright/issues) with the output of `node bin/iconwright.mjs doctor`, whether it worked or not.
+If you try iconwright on one of these, please [open an issue](https://github.com/JayceeGupta/iconwright/issues) with the output of `npx iconwright doctor`, whether it worked or not.
 
 ## Readiness
 

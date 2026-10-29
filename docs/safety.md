@@ -67,9 +67,9 @@ Tools like **TranslucentTB** switch themselves off if Explorer restarts twice wi
 Ask your agent: “Undo everything iconwright changed, including my pinned apps.” Or run:
 
 ```bash
-node bin/iconwright.mjs restore --all                 # every app and desktop icon back to the original
-node bin/iconwright.mjs restore-pins --from original  # pinned apps as they were before iconwright
-node bin/iconwright.mjs refresh                       # make sure pinned icons reload
+npx iconwright restore --all                 # every app and desktop icon back to the original
+npx iconwright restore-pins --from original  # pinned apps as they were before iconwright
+npx iconwright refresh                       # make sure pinned icons reload
 ```
 
 Then you can delete `%LOCALAPPDATA%\iconwright\` and uninstall the plugin (`/plugin uninstall iconwright` in Claude Code).

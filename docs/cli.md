@@ -1,12 +1,12 @@
 # Command line
 
-Everything the agent tools do is also available as a command. Run commands from the iconwright folder:
+Everything the agent tools do is also available as a command. With Node.js 20 or newer, run it from anywhere:
 
 ```bash
-node bin/iconwright.mjs <command> [options]
+npx -y iconwright <command> [options]
 ```
 
-`node bin/iconwright.mjs help` lists the commands, and `<command> --help` shows one command's options. Unknown options are errors, so a typo never runs silently.
+`npx iconwright help` lists the commands, and `<command> --help` shows one command's options. Unknown options are errors, so a typo never runs silently.
 
 **Sources** are an Iconify id (`mdi:music`), an image file (`.svg`, `.png`, `.jpg`, `.webp`, `.ico`), raw `<svg>` text, or (on Windows) `app:<App name>` for an installed app's current icon.
 
@@ -26,10 +26,10 @@ node bin/iconwright.mjs <command> [options]
 Examples:
 
 ```bash
-node bin/iconwright.mjs search rocket --palette mono --sheet rockets.png
-node bin/iconwright.mjs design ph:rocket-launch-fill tabler:rocket --styles "color=white bg=#2d5ba6 shape=squircle|color=#e9c46a bg=#1f2228 shape=circle" --out grid.png
-node bin/iconwright.mjs preview ph:rocket-launch-fill --style "color=white bg=#2d5ba6 shape=squircle" --label Launcher --out scenes.png
-node bin/iconwright.mjs make ph:rocket-launch-fill --style "color=white bg=#2d5ba6 shape=squircle" --formats ico,icns,web --name launcher
+npx iconwright search rocket --palette mono --sheet rockets.png
+npx iconwright design ph:rocket-launch-fill tabler:rocket --styles "color=white bg=#2d5ba6 shape=squircle|color=#e9c46a bg=#1f2228 shape=circle" --out grid.png
+npx iconwright preview ph:rocket-launch-fill --style "color=white bg=#2d5ba6 shape=squircle" --label Launcher --out scenes.png
+npx iconwright make ph:rocket-launch-fill --style "color=white bg=#2d5ba6 shape=squircle" --formats ico,icns,web --name launcher
 ```
 
 ## Apps and taskbar (Windows)
@@ -48,9 +48,9 @@ node bin/iconwright.mjs make ph:rocket-launch-fill --style "color=white bg=#2d5b
 `pin`, `unpin` and `reorder` still work as shortcuts for `pins`.
 
 ```bash
-node bin/iconwright.mjs apply Spotify Steam Discord --source app --style "color=white"
-node bin/iconwright.mjs pins --pin Notepad --order Notepad --position 0 --dry-run
-node bin/iconwright.mjs restore --all
+npx iconwright apply Spotify Steam Discord --source app --style "color=white"
+npx iconwright pins --pin Notepad --order Notepad --position 0 --dry-run
+npx iconwright restore --all
 ```
 
 ## Desktop (Windows)

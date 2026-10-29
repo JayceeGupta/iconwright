@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-10-30)
+
+The first release on npm: `npx -y iconwright mcp` starts the MCP server, and `npx -y iconwright <command>` runs the command line.
 
 - **Studio, rebuilt.** Everything is drawn in your browser from the same recipe the server uses, so edits show instantly (no server round trip) and downloads match the preview. New: undo and redo, eight live ideas, swatches and gradient presets, artwork color stays original until you choose a custom one, artwork size with Auto, live style code with clear errors, drag and drop SVG, a download menu, an app-style phone layout, and a scene gallery with light and dark per scene and click to enlarge.
 - **Scenes, redrawn.** Every mockup was rebuilt from platform measurements: a full Windows 11 taskbar with Start, search, tray and clock; a real Start menu with Pinned, Recommended and the account bar; Windows 11 wallpaper; File Explorer with tabs, command bar, address bar and navigation pane; a Chrome-style browser; a macOS Dock with tooltip and trash; an iPhone home screen with Apple's continuous-corner mask; and a Pixel home screen. Neighbor apps are real full-color logos instead of flat recolored glyphs. The MCP preview_icon tool and the studio draw the same layouts.
@@ -10,7 +12,7 @@
 - iconwright is now pitched first as an MCP server for restyling the Windows taskbar and desktop, with icon design second.
 - **Fix:** restyling an app no longer changes pinned shortcuts that only launch through it with arguments, such as Steam games (which run `steam.exe steam://rungameid/…`) or browser profile shortcuts. Found on screen: restyling Steam also changed a pinned Steam game.
 - `iconwright report` prints system details and a self-test as Markdown for test reports, without app names, paths or the user name.
-- `iconwright mcp` starts the MCP server, and the package is ready for npx as `iconwright` (not published yet).
+- `iconwright mcp` starts the MCP server; the install docs and the setup prompt now use `npx`.
 - Screenshots explain a locked or sleeping screen instead of failing with "The handle is invalid".
 - Docs: test prompts for macOS, Linux and Windows with the stock taskbar; issue and pull request templates; what doesn't work while the screen is locked.
 
@@ -45,7 +47,7 @@ A design release: iterate on icons cheaply, with your agent or by hand, and see 
 
 ## 0.1.0 (2026-10-27)
 
-First public version.
+First version (not published to npm).
 
 - Make `.ico` icons (256 to 16 px) from Iconify names, SVG, PNG, JPEG, WebP or existing `.ico` files, with recolor, backplate, padding and preview images. Works on Windows, macOS and Linux.
 - Windows: change app icons on the taskbar, Start Menu and pinned shortcuts; pin, unpin and reorder taskbar apps; move, arrange, resize, re-icon, show and hide desktop icons; save and load desktop layouts.

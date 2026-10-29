@@ -13,9 +13,8 @@ for designing icons and customizing the Windows taskbar and desktop.
 1. If you are Claude Code, run:
      /plugin marketplace add JayceeGupta/iconwright
      /plugin install iconwright@icon-playground
-   Otherwise: git clone https://github.com/JayceeGupta/iconwright, run npm install
-   in it, and add a stdio MCP server named "iconwright" that runs:
-     node <clone>/bin/iconwright-mcp.mjs
+   Otherwise, add a stdio MCP server named "iconwright" that runs:
+     npx -y iconwright mcp
 2. Read https://iconwright.guptajayam.com/llms.txt to learn how to use it well.
 3. On Windows, call the doctor tool. Then tell me what you can do.
 ```

@@ -7,3 +7,5 @@ Testing on your computer is the most useful thing you can do right now: iconwrig
 3. Know the fix? Open a pull request with the change and the report that shows the problem.
 
 Details, the report template and how to work on the code: [docs/contributing.md](docs/contributing.md).
+
+Please follow the [code of conduct](CODE_OF_CONDUCT.md). Report security problems privately, as described in [SECURITY.md](SECURITY.md).
