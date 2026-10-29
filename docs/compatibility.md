@@ -34,6 +34,8 @@ All on one PC: **Windows 11 build 26200**, 200% display scaling, one monitor, En
 | Desktop: move, arrange, size, auto-arrange, hide icons, show and hide system icons, re-icon a shortcut, restore, save and load a layout | Seen on screen (desktop screenshots) |
 | `restore --all` | Icon read back after restoring |
 | Restyle two pinned apps at once from their own icons, then restore (MCP) | Icon settings read back: changed, then exactly the originals |
+| Restyle Steam with a Steam game pinned next to it | Seen on screen: only Steam changes (the game's pin launches steam.exe with arguments) |
+| Install from the npm package tarball; start the MCP server with npx | 20 tools listed and a live call answered |
 | Extract an app's own icon (custom `.ico`, `.exe` resources, Steam) | Images checked by eye: 256 px with transparency |
 | Desktop `.url` with non-ASCII text, and a folder without `desktop.ini`: set and restore | Files compared byte for byte after restore |
 | Pin and unpin through MCP with the trimmed environment MCP clients use | Pin count read back |

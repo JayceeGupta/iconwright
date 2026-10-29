@@ -1,0 +1,24 @@
+name: Bug report
+description: Something didn't work as the docs say.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you (or your agent) asked for, what you expected, and what happened instead. Include the exact command or tool call and the error.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Paste the output of `node bin/iconwright.mjs report`.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: state
+    attributes:
+      label: Is anything still changed?
+      description: If your taskbar, icons or desktop are not back to normal, say what's different. See https://iconwright.guptajayam.com/docs/safety#how-to-undo-everything for how to undo by hand.

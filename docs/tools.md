@@ -257,7 +257,7 @@ No arguments.
 
 ### `capture`
 
-See a change: the taskbar (default), the desktop icons (drawn even under windows; no wallpaper), or the screen.
+See a change: the taskbar (default), the desktop icons (drawn even under windows; no wallpaper), or the screen. Fails while the screen is locked.
 
 Read-only. Windows only.
 

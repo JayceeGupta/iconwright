@@ -72,7 +72,14 @@ node bin/iconwright.mjs restore --all
 | Command | What it does |
 | --- | --- |
 | `doctor` | Checks that the taskbar and desktop tools can work on this PC. Changes nothing. |
-| `capture [taskbar\|desktop\|screen]` | Saves a screenshot. `--out file.png`, `--max-width px`. |
+| `capture [taskbar\|desktop\|screen]` | Saves a screenshot. `--out file.png`, `--max-width px`. Doesn't work while the screen is locked. |
+
+## Testing (any OS)
+
+| Command | What it does |
+| --- | --- |
+| `report` | Prints your system details and a quick self-test as Markdown, for [test reports](contributing.md). Names no apps, files or user folders. `--out report.md` saves it. |
+| `mcp` | Starts the MCP server on stdio (the same as `bin/iconwright-mcp.mjs`). |
 
 ## Output and exit codes
 

@@ -81,10 +81,15 @@ node bin/iconwright.mjs studio
 | [MCP tools](docs/tools.md) / [Command line](docs/cli.md) | Reference |
 | [Safety and risks](docs/safety.md) | What changes, how to undo it, what could go wrong |
 | [Compatibility](docs/compatibility.md) / [How it works](docs/how-it-works.md) | Testing status and internals |
+| [Test and contribute](docs/contributing.md) | Prompts that have your agent test iconwright on your computer |
 
 ## Safety in one paragraph
 
 Designing and exporting changes nothing but the files you ask for. App and desktop icon changes edit shortcut settings and are fully undoable. Pinning edits an undocumented Windows setting and restarts Explorer (open File Explorer windows close); iconwright backs it up first and rolls back on failure. Read [Safety and risks](docs/safety.md) before your first pin change.
+
+## Help test it
+
+iconwright has been tested on one Windows 11 PC. If you use macOS, Linux, Windows 10 or the stock Windows 11 taskbar, the [test prompts](docs/contributing.md#test-prompts) let your agent run a test plan, put everything back and write a report you can send as an issue or pull request.
 
 ## License
 

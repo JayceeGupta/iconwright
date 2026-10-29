@@ -367,7 +367,7 @@ export const TOOLS = [
   },
   {
     name: 'capture', group: 'Undo and checks', windows: true, title: 'Screenshot',
-    description: 'See a change: the taskbar (default), the desktop icons (drawn even under windows; no wallpaper), or the screen.',
+    description: 'See a change: the taskbar (default), the desktop icons (drawn even under windows; no wallpaper), or the screen. Fails while the screen is locked.',
     input: {
       what: z.enum(['taskbar', 'desktop', 'screen']).optional(),
       maxWidth: z.number().int().min(0).max(4000).optional().describe('Scale down to this width (default 1600; 0 = full)'),

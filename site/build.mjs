@@ -30,6 +30,7 @@ const NAV = [
   ['Guides', [['design', 'Design icons'], ['studio', 'The studio'], ['taskbar', 'Taskbar and apps'], ['desktop', 'Desktop']]],
   ['Reference', [['tools', 'MCP tools'], ['cli', 'Command line'], ['safety', 'Safety and risks'], ['compatibility', 'Compatibility'],
     ['how-it-works', 'How it works'], ['windows-internals', 'Windows internals'], ['changelog', 'Changelog']]],
+  ['Help out', [['contributing', 'Test and contribute']]],
 ];
 const DOCS = NAV.flatMap(([, items]) => items);
 
@@ -233,7 +234,7 @@ ${['getting-started', 'agents', 'design', 'studio', 'taskbar', 'desktop'].map(li
 ${['tools', 'cli', 'safety', 'compatibility', 'how-it-works', 'windows-internals'].map(line).filter(Boolean).join('\n')}
 
 ## Optional
-${['changelog'].map(line).filter(Boolean).join('\n')}
+${['changelog', 'contributing'].map(line).filter(Boolean).join('\n')}
 - [Source code](${REPO})
 - [Full docs in one file](${SITE}/llms-full.txt)
 `;

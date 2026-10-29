@@ -94,6 +94,16 @@ register('studio', async (args) => {
   await new Promise(() => {});   // runs until Ctrl+C
 }, 'studio [source] [options]');
 
+register('report', async (args) => {
+  const { values: v, help } = parseArgs(args, { flags: { out: 'string' } });
+  if (help) return 'Usage: iconwright report [--out report.md]   Environment and self-test, safe to share publicly';
+  const { buildReport } = await import('./report.mjs');
+  const win = process.platform === 'win32' ? (await import('./win.mjs')).win : null;
+  const md = await buildReport({ win });
+  if (v.out) { await writeFile(v.out, md); return v.out; }
+  return md;
+}, 'report [--out file.md]');
+
 export function help() { return HELP; }
 const HELP = `iconwright: design icons, and customize the Windows taskbar and desktop.
 
@@ -122,6 +132,10 @@ Desktop (Windows)
 Checks (Windows)
   doctor                     Check this PC (changes nothing)
   capture [taskbar|desktop|screen]
+
+Testing (any OS)
+  report                     Environment and self-test, safe to paste into a test report
+  report                     Environment and self-test, safe to share in a test report
 
 Sources: an Iconify id (mdi:music), an image file, raw <svg>, or app:<App name>.
 Styles: --style "color=white bg=#2d5ba6 shape=squircle shadow", or --color, --bg, --shape,

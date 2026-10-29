@@ -1,0 +1,49 @@
+name: Test report
+description: Share what happened when you tried iconwright on your computer.
+title: "Test report: <your system>"
+labels: ["test report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! The [test prompts](https://iconwright.guptajayam.com/docs/contributing#test-prompts) have your agent run a plan and write this report for you.
+        Check screenshots for anything private before attaching them.
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Windows 11, stock taskbar
+        - Windows 11, StartAllBack / ExplorerPatcher / other taskbar mod
+        - Windows 10
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Paste the output of `node bin/iconwright.mjs report`.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: findings
+    attributes:
+      label: Findings
+      description: The report your agent wrote, or your own notes. For each problem, what you ran, what you expected, and what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag images here (optional).
+  - type: checkboxes
+    id: restored
+    attributes:
+      label: Clean-up
+      options:
+        - label: My taskbar, icons and desktop are back to how they were before the test (or the report says what isn't).

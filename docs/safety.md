@@ -98,6 +98,16 @@ From most to least likely to matter:
 7. **Store apps** (like Apple Music): the pinned icon changes, but the icon of the running window may stay the app's own.
 8. **The local studio is a web server.** It listens only on `127.0.0.1` and requires a per-session secret token, so websites can't reach it. Close it when you're done.
 
+## When the screen is locked
+
+Some things need a visible, unlocked desktop. While the screen is locked or the sign-in screen is showing:
+
+- **Screenshots (`capture`) fail** with a message saying the screen is locked. Unlock and ask again.
+- **The taskbar-style check is skipped.** After an Explorer restart, iconwright compares the taskbar's color before and after to notice when a styling tool like TranslucentTB lost its look. It can't read the taskbar while the screen is locked, so it reports no colors and can't warn you.
+- **You can't see the result.** Icon and pin changes still apply, but check them on screen after you unlock before relying on them.
+
+If you're asking an agent to work while you're away, tell it to skip screenshots and pin changes, or leave the screen unlocked.
+
 ## Things iconwright can't do
 
 - Give a single ordinary file (like a `.txt`) its own icon. Windows picks those by file type. Use a shortcut to the file instead.

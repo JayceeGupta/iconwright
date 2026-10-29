@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** restyling an app no longer changes pinned shortcuts that only launch through it with arguments, such as Steam games (which run `steam.exe steam://rungameid/…`) or browser profile shortcuts. Found on screen: restyling Steam also changed a pinned Steam game.
+- `iconwright report` prints system details and a self-test as Markdown for test reports, without app names, paths or the user name.
+- `iconwright mcp` starts the MCP server, and the package is ready for npx as `iconwright-mcp` (not published yet).
+- Screenshots explain a locked or sleeping screen instead of failing with "The handle is invalid".
+- Docs: test prompts for macOS, Linux and Windows with the stock taskbar; issue and pull request templates; what doesn't work while the screen is locked.
+
 ## 0.2.0 (2026-10-29)
 
 A design release: iterate on icons cheaply, with your agent or by hand, and see them in place before using them.

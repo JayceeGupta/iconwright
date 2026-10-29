@@ -133,6 +133,8 @@ Showing and hiding the system icons uses the same setting as Windows' *Desktop i
 | `src/studio.mjs`, `studio/`, `api/studio.mjs` | The studio: its HTTP API (local and hosted), its web page, and the hosted function |
 | `src/sheet.mjs` | Side-by-side sheets of image files |
 | `src/apply.mjs` | "Make an icon and apply it" for apps and desktop items |
+| `src/report.mjs` | `iconwright report`: system details and a self-test for test reports |
+| `bin/ensure-deps.mjs` | Installs dependencies on a fresh clone's first run; a no-op when installed from npm |
 | `src/win.mjs` | Runs the Windows layer: one process per call (CLI) or a long-lived worker (MCP) |
 | `src/args.mjs` | Strict CLI option parsing |
 | `src/output.mjs` | Tidies results for agents (forward-slash paths, no empty fields) |

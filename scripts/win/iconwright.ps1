@@ -112,6 +112,7 @@ function Get-StartShortcuts {
 }
 
 $script:StartAppsCache = $null
+$script:WShell = $null
 function Find-Apps([string]$q) {
   # Get-StartApps costs ~0.5-0.9 s, so one request looks it up once, however many apps it names.
   if ($null -eq $script:StartAppsCache) { $script:StartAppsCache = @(Get-StartApps) }
@@ -160,6 +161,11 @@ function Resolve-App([string]$name) {
 # Pinned taskbar shortcuts belonging to the app. An AppUserModelID match wins; when both
 # sides have an ID and they differ, it's another app even if the file name or target matches
 # (two apps can share a display name). Without IDs, match by target exe, then by file name.
+function Get-LnkArguments([string]$lnk) {
+  if (-not $script:WShell) { $script:WShell = New-Object -ComObject WScript.Shell }
+  try { [string]$script:WShell.CreateShortcut($lnk).Arguments } catch { '' }
+}
+
 function Get-PinnedFor($a, [string]$target, [string]$appId) {
   # Strongest kind of match wins; weaker kinds are only used when there is no stronger one.
   $byId = @(); $byTarget = @(); $byName = @()
@@ -167,7 +173,10 @@ function Get-PinnedFor($a, [string]$target, [string]$appId) {
     if (-not $p -or -not $p.EndsWith('.lnk') -or -not (Test-Path -LiteralPath $p)) { continue }
     $id = Get-LnkAppId $p
     if ($appId -and $id) { if ($id -eq $appId) { $byId += $p }; continue }
-    if ($target -and ([Iconwright.Lnk]::GetTarget($p) -eq $target)) { $byTarget += $p; continue }
+    # Same program is not enough when the shortcut passes arguments under another name: a Steam
+    # game pin runs steam.exe with steam://rungameid/..., a browser profile pin adds --profile.
+    if ($target -and ([Iconwright.Lnk]::GetTarget($p) -eq $target) -and
+        (-not (Get-LnkArguments $p) -or [IO.Path]::GetFileNameWithoutExtension($p) -eq $a.Name)) { $byTarget += $p; continue }
     if ([IO.Path]::GetFileNameWithoutExtension($p) -eq $a.Name) { $byName += $p }
   }
   if ($byId.Count) { return $byId }
@@ -737,7 +746,13 @@ switch -Wildcard ($Command.ToLower()) {
     $out = if ($File) { $File } else { Join-Path (Join-Path $Home_ 'captures') "$what.png" }
     New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
     if (Get-Process LogonUI -ErrorAction SilentlyContinue) { Fail "Can't take a screenshot while the screen is locked or the sign-in screen is showing." }
-    $size = switch ($what) { 'taskbar' { [Iconwright.Capture]::Taskbar($out, $MaxWidth) } 'desktop' { [Iconwright.Capture]::Desktop($out, $MaxWidth) } default { [Iconwright.Capture]::Screen($out, $MaxWidth) } }
+    # A locked or sleeping display doesn't always show LogonUI; Windows then refuses screen access
+    # with "The handle is invalid". Say what that means instead.
+    try { $size = switch ($what) { 'taskbar' { [Iconwright.Capture]::Taskbar($out, $MaxWidth) } 'desktop' { [Iconwright.Capture]::Desktop($out, $MaxWidth) } default { [Iconwright.Capture]::Screen($out, $MaxWidth) } } }
+    catch {
+      if ($_.Exception.Message -match 'handle is invalid') { Fail "Can't take a screenshot right now: the screen is locked, asleep or not shown on this PC. Unlock it and try again." }
+      throw
+    }
     Out-Json ([pscustomobject]@{ path = $out; size = $size })
   }
   'restore-pins' { Out-Json (Cmd-RestorePins $Value) }
