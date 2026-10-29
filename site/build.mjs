@@ -9,9 +9,8 @@ import { Marked } from 'marked';
 import sharp from 'sharp';
 import pngToIco from 'png-to-ico';
 import { renderMaster, resizePng, parseStyle } from '../src/render.mjs';
-import { designGrid, searchSheet } from '../src/design.mjs';
+import { designGrid } from '../src/design.mjs';
 import { renderScenes } from '../src/scenes.mjs';
-import { searchIconsDetailed } from '../src/source.mjs';
 import { TOOLS, PROMPTS, listedTools } from '../src/tools.mjs';
 import { text } from '../src/draw.mjs';
 
@@ -267,6 +266,52 @@ async function brandAssets() {
     .composite([{ input: await resizePng(master, 220), left: 90, top: 140 }, { input: title.input, left: 360, top: 170 }, { input: tag.input, left: 92, top: 430 }]).png().toBuffer());
 }
 
+// Home page showcase: real requests, each rendered as the taskbar after the agent's change.
+const SHOWCASE = [
+  { id: 'white', tab: 'All white', ask: 'Make all my taskbar icons white.',
+    call: 'app_apply_icon(apps: [all pinned], source: "app", style: "color=white")', did: 'Each icon is redrawn in white from the app’s own logo.',
+    render: () => ({ look: { color: 'white' } }) },
+  { id: 'tiles', tab: 'Mac-style tiles', ask: 'Put every icon on a white rounded tile, like a Mac.',
+    call: 'app_apply_icon(apps: [all pinned], source: "app", style: "bg=white shape=squircle")', did: 'Original colors, each on the same smooth-cornered tile.',
+    render: () => ({ look: { bg: '#ffffff', shape: 'squircle', padding: 0.2 } }) },
+  { id: 'tint', tab: 'Match the wallpaper', ask: 'Tint them to match my wallpaper.',
+    call: 'app_apply_icon(apps: [all pinned], source: "app", style: "color=#7cc0ff")', did: 'One color picked from the wallpaper, applied to every app.',
+    render: () => ({ look: { color: '#7cc0ff' } }) },
+  { id: 'order', tab: 'Reorder', ask: 'Move Spotify next to Steam.',
+    call: 'taskbar_pins(order: ["Steam", "Spotify"], position: 2)', did: 'Pins are rearranged in one Explorer restart. Nothing else changes.',
+    render: () => ({ order: ['explorer', 'edge', 'spotify', 'vscode', 'discord'] }) },
+  { id: 'custom', tab: 'A new icon', ask: 'Steam needs a new icon. Something with a rocket.',
+    call: 'search_icons → design_icons → preview_icon → app_apply_icon(apps: ["Steam"])', did: 'Designed, previewed on your taskbar, then applied when you picked it.',
+    render: (rocket) => ({ me: rocket }) },
+];
+
+const taskbarPicture = (name, alt, lazy = true) => `<picture><source media="(max-width: 640px)" srcset="/img/taskbar-${name}-sm.png" width="600" height="164"><img src="/img/taskbar-${name}.png" width="1760" height="164" alt="${esc(alt)}"${lazy ? ' loading="lazy"' : ''}></picture>`;
+
+function showcaseHtml() {
+  const tabs = SHOWCASE.map((d, i) => `<button type="button" role="tab" id="ask-${d.id}" aria-controls="show-${d.id}" aria-selected="${i === 0}"${i ? ' tabindex="-1"' : ''}>${esc(d.tab)}</button>`).join('');
+  const panels = SHOWCASE.map((d, i) => `<div class="show-panel" role="tabpanel" id="show-${d.id}" aria-labelledby="ask-${d.id}"${i ? ' hidden' : ''}>
+      <p class="bubble you">${esc(d.ask)}</p>
+      <p class="bubble call"><code>${esc(d.call)}</code></p>
+      <figure class="bar after"><figcaption>After</figcaption>${taskbarPicture(d.id, `The same taskbar after: ${d.ask}`, i > 0)}</figure>
+      <p class="did">${esc(d.did)}</p>
+    </div>`).join('\n    ');
+  return `<div class="show-tabs" role="tablist" aria-label="Example requests">${tabs}</div>
+    <figure class="bar before"><figcaption>Before</figcaption>${taskbarPicture('before', 'A Windows 11 taskbar with File Explorer, Edge, Steam, VS Code, Spotify and Discord in their usual colors', false)}</figure>
+    ${panels}`;
+}
+
+const GALLERY = [
+  ['start', 'Start menu', 'Pinned and Recommended, at 32 px'],
+  ['ios', 'iPhone', 'Apple’s rounded mask, with labels'],
+  ['dock', 'macOS Dock', 'With the name tooltip'],
+  ['android', 'Android', 'Pixel launcher, round mask'],
+  ['explorer', 'File Explorer', 'Light theme, list and tiles'],
+  ['browser', 'Browser tab', 'As a favicon at 16 px'],
+  ['desktop', 'Desktop', 'Selected, and as a large icon'],
+];
+const SCENE_SIZE = {};
+const galleryHtml = () => GALLERY.map(([s, t, sub]) => `<figure class="shot shot-${s}"><img src="/img/scene-${s}.webp" width="${SCENE_SIZE[s]?.width ?? ''}" height="${SCENE_SIZE[s]?.height ?? ''}" alt="The Launcher icon in a ${esc(t)} mockup" loading="lazy" decoding="async"><figcaption><b>${t}</b>${sub}</figcaption></figure>`).join('\n      ');
+
 async function demoImages() {
   const out = {};
   const save = async (name, png, alt) => {
@@ -275,24 +320,32 @@ async function demoImages() {
     out[name] = `<img src="/img/${name}.png" width="${width}" height="${height}" alt="${esc(alt)}" loading="lazy">`;
   };
   try {
-    // Hero: one taskbar before and after "make all my taskbar icons white", 2x for sharp screens.
+    // Showcase: one taskbar before and after each request, 2x for sharp screens, plus a phone crop
+    // of just the app icons. Steam sits in the middle slot; the five apps around it can be any order.
     const nb = (file) => path.join(root, 'assets', 'neighbors', `${file}.svg`);
-    const apps = [['File Explorer', 'file-explorer'], ['Microsoft Edge', 'edge'], ['Visual Studio Code', 'vscode'], ['Spotify', 'spotify'], ['Discord', 'discord']];
-    for (const [name, white] of [['before', false], ['after', true]]) {
-      const look = white ? { color: 'white' } : {};
-      const master = await renderMaster({ source: nb('steam'), padding: 0, ...look });
+    const APP = { explorer: ['File Explorer', 'file-explorer'], edge: ['Microsoft Edge', 'edge'], vscode: ['Visual Studio Code', 'vscode'], spotify: ['Spotify', 'spotify'], discord: ['Discord', 'discord'] };
+    const ORDER = ['explorer', 'edge', 'vscode', 'spotify', 'discord'];
+    const ROCKET = { source: 'ph:rocket-launch-fill', color: 'white', bg: 'linear-gradient(135deg,#7b3f92,#2d5ba6)', shape: 'squircle' };
+    const taskbar = async (name, { look = {}, order = ORDER, me } = {}) => {
+      const master = await renderMaster(me ?? { source: nb('steam'), padding: 0, ...look });
       const png = await renderScenes({ master, label: 'Steam', scenes: ['taskbar'], theme: 'dark', scale: 2, bare: true,
-        neighbors: apps.map(([n, f]) => ({ name: n, source: nb(f), ...look })) });
+        neighbors: order.map((k) => ({ name: APP[k][0], source: nb(APP[k][1]), ...look })) });
       await writeFile(path.join(dist, 'img', `taskbar-${name}.png`), png);
+      // The apps sit between x 415 and 715 of the 880 px bar.
+      await writeFile(path.join(dist, 'img', `taskbar-${name}-sm.png`), await sharp(png).extract({ left: 830, top: 0, width: 600, height: 164 }).png().toBuffer());
+    };
+    await taskbar('before');
+    for (const d of SHOWCASE) await taskbar(d.id, d.render(ROCKET));
+    // Custom icons: one design in every scene.
+    const master = await renderMaster(ROCKET);
+    for (const [scene, theme] of [['start', 'dark'], ['ios'], ['dock'], ['android'], ['explorer', 'light'], ['browser', 'dark'], ['desktop']]) {
+      const png = await renderScenes({ master, label: 'Launcher', scenes: [scene], theme, scale: 2, bare: true });
+      await writeFile(path.join(dist, 'img', `scene-${scene}.webp`), await sharp(png).webp({ quality: 88 }).toBuffer());
+      SCENE_SIZE[scene] = await sharp(png).metadata();
     }
-    const found = await searchIconsDetailed('rocket', { limit: 24 });
-    await save('search', (await searchSheet(found.icons)).png, 'A numbered sheet of 24 rocket icons');
     const rockets = ['ph:rocket-launch-fill', 'mdi:rocket-launch-outline', 'tabler:rocket'];
     const styles = ['color=#25282d', 'color=white bg=#2d5ba6 shape=squircle', 'color=white bg=linear-gradient(135deg,#e9c46a,#c47335) shape=rounded shadow', 'color=#e9c46a bg=#1f2228 shape=circle'].map(parseStyle);
     await save('grid', (await designGrid({ sources: rockets, styles })).png, 'A grid of three rocket icons in four styles, labeled A1 to C4');
-    const master = await renderMaster({ source: 'ph:rocket-launch-fill', color: 'white', bg: 'linear-gradient(135deg,#7b3f92,#2d5ba6)', shape: 'squircle' });
-    await save('scenes', await renderScenes({ master, label: 'Launcher', scenes: ['taskbar', 'start', 'desktop', 'sizes'] }), 'The rocket icon on a Windows taskbar, Start menu, desktop, and at true pixel sizes');
-    await save('mobile', await renderScenes({ master, label: 'Launcher', scenes: ['dock', 'ios', 'android', 'browser'] }), 'The rocket icon in the macOS Dock, on iOS, on Android and in a browser tab');
   } catch (e) {
     console.warn(`demo images skipped (${e.message}); the page shows text instead`);
   }
@@ -395,6 +448,7 @@ home = home.replace('{{header}}', siteHeader('')).replace('{{footer}}', siteFoot
   .replace('{{agentPrompt}}', esc(AGENT_PROMPT))
   .replace('{{sizes:dark}}', sizesHtml('dark')).replace('{{sizes:light}}', sizesHtml('light'))
   .replace('{{img:formats}}', FORMATS_HTML)
+  .replaceAll('{{icon:copy}}', ICON.copy).replace('{{showcase}}', showcaseHtml()).replace('{{gallery}}', galleryHtml())
   .replace(/\{\{img:(\w+)\}\}/g, (_, n) => images[n] ?? '<p>Image unavailable in this build.</p>');
 await writeFile(path.join(dist, 'index.html'), home);
 await writeFile(path.join(dist, 'index.md'), HOME_MD);

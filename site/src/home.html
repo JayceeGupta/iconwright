@@ -5,127 +5,115 @@
 
 <main id="content">
 <section class="hero">
-  <div class="hero-copy">
-    <p class="eyebrow">An MCP server for Windows</p>
-    <h1>Restyle your taskbar by asking.</h1>
-    <p class="lede">“Make all my taskbar icons white.” “Pin Spotify next to Chrome.” “Tidy my desktop.” iconwright lets your agent change app icons, pins and desktop layout, with undo for everything. When no icon fits, it designs one and shows it on your taskbar first.</p>
-    <div class="actions">
-      <a class="btn primary lg" href="/docs/getting-started">Get started</a>
-      <a class="btn lg" href="/studio/">Open the studio</a>
-    </div>
-    <p class="fine">Works with Claude Code, Codex, Cursor and any MCP client. Icon design and export also run on macOS and Linux. Free and open source.</p>
+  <p class="badge"><span aria-hidden="true"></span>An MCP server for Windows 10 and 11</p>
+  <h1>Restyle your taskbar <em>by asking.</em></h1>
+  <p class="lede">Tell your AI agent what you want. iconwright restyles app icons, pins and reorders apps, and tidies the desktop, and every change can be undone.</p>
+  <div class="actions">
+    <button class="btn primary lg" type="button" data-copy-from="#setup-prompt" data-copied="Copied. Paste it into your agent">{{icon:copy}}<span>Copy the setup prompt</span></button>
+    <a class="btn lg" href="/studio/">Try the studio <small>No install</small></a>
   </div>
+  <p class="fine">Works with Claude Code, Codex, Cursor and any MCP client. Free and open source. <a href="/docs/getting-started">Set it up by hand</a></p>
 </section>
 
-<section class="demo" aria-label="Before and after: one request restyles the whole taskbar">
-  <figure class="demo-row"><figcaption>Before</figcaption><img src="/img/taskbar-before.png" width="880" height="82" alt="A Windows 11 taskbar with File Explorer, Edge, Steam, VS Code, Spotify and Discord in their usual colors"></figure>
-  <p class="demo-ask"><span>“Make all my taskbar icons white.”</span></p>
-  <figure class="demo-row"><figcaption>After</figcaption><img src="/img/taskbar-after.png" width="880" height="82" alt="The same taskbar with every app icon redrawn in white from its own logo"></figure>
-</section>
-
-<section class="section">
-  <div class="section-in two">
-    <div>
-      <p class="eyebrow">Taskbar and desktop</p>
-      <h2>Your taskbar, restyled in one sentence</h2>
-      <p class="intro">iconwright knows how Windows keeps pinned apps, so your agent can restyle every icon, pin, unpin and reorder apps, and tidy the desktop. Changes that need Explorer to restart are batched into one restart.</p>
-      <p class="links"><a href="/docs/taskbar">Taskbar and apps guide →</a> <a href="/docs/desktop">Desktop guide →</a></p>
-    </div>
-    <div class="chat" aria-label="An example conversation">
-      <p class="you">Make all my taskbar icons white.</p>
-      <p class="call">taskbar_status()</p>
-      <p class="call">app_apply_icon(apps: [13 pinned apps], source: "app", style: "color=white")</p>
-      <p class="agent">Done: 13 icons are now white, each from the app's own artwork. Want them back? Say “undo” and I'll restore the originals.</p>
-    </div>
+<section class="showcase" aria-label="Examples: one request, one taskbar">
+  <div class="show-card">
+    {{showcase}}
   </div>
 </section>
 
 <section class="section">
   <div class="section-in">
-    <p class="eyebrow">Custom icons</p>
-    <h2>When no icon fits, design one in four steps</h2>
-    <p class="intro">Each step is one small image, so trying ideas costs your agent almost nothing and costs you a glance. Nothing is saved until you pick.</p>
-    <ol class="steps">
+    <p class="eyebrow">What you can ask for</p>
+    <h2>Everything on your taskbar and desktop</h2>
+    <p class="intro">iconwright knows where Windows keeps pinned apps, shortcuts and desktop positions, so your agent changes the real thing, not a theme on top.</p>
+    <ul class="features">
       <li>
-        <div class="step-copy">
-          <h3>Find artwork</h3>
-          <p>Search more than 200,000 open-source icons and brand logos. Results come back as one numbered sheet, so you can say “number 7” instead of guessing from names.</p>
-          <p class="tool"><code>search_icons</code></p>
-        </div>
-        <figure>{{img:search}}<figcaption>“rocket”, as your agent sees it.</figcaption></figure>
+        <span class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2.5"/><rect x="13" y="3" width="8" height="8" rx="2.5"/><rect x="3" y="13" width="8" height="8" rx="2.5"/><path d="M17 13.5l1.2 2.3 2.3 1.2-2.3 1.2L17 20.5l-1.2-2.3-2.3-1.2 2.3-1.2z"/></svg></span>
+        <h3>Restyle app icons</h3>
+        <p>One app or all of them in one call: recolor from each app’s own logo, add tiles and shadows, or use any image.</p>
+        <q>Make Discord match the rest.</q>
       </li>
       <li>
-        <div class="step-copy">
-          <h3>Compare looks</h3>
-          <p>Rows are artwork, columns are styles: colors, backgrounds, gradients, shapes. Each cell shows the icon large and at 24 px on dark and light. Pick a cell like “B3”.</p>
-          <p class="tool"><code>design_icons</code></p>
-        </div>
-        <figure>{{img:grid}}<figcaption>Three rockets, four styles, one image.</figcaption></figure>
+        <span class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="15" width="19" height="6" rx="2"/><path d="M8 11V4M5 7l3-3 3 3M16 4v7M13 8l3 3 3-3"/></svg></span>
+        <h3>Pin, unpin and reorder</h3>
+        <p>Any number of changes in a single Explorer restart, with a dry run first when the order matters.</p>
+        <q>Pin Notion and put it first.</q>
       </li>
       <li>
-        <div class="step-copy">
-          <h3>See it in place</h3>
-          <p>Mock the icon up on a Windows taskbar, Start menu, desktop, File Explorer, a browser tab, the macOS Dock, an iPhone and Android. On Windows, it sits between your own pinned apps.</p>
-          <p class="tool"><code>preview_icon</code></p>
-        </div>
-        <figure>{{img:scenes}}<figcaption>Catch the icon that vanishes on a light taskbar before you apply it.</figcaption></figure>
+        <span class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M9 21h6M12 17v4M6.5 7.5h2M6.5 10.5h2M6.5 13.5h2"/></svg></span>
+        <h3>Tidy the desktop</h3>
+        <p>Arrange and move icons, change their size, set icons for This PC and the Recycle Bin, and save layouts to load later.</p>
+        <q>Put my games in the right column.</q>
       </li>
       <li>
-        <div class="step-copy">
-          <h3>Ship it</h3>
-          <p>Get a Windows <code>.ico</code>, a macOS <code>.icns</code>, a complete favicon and web-app set, or PNGs at every size. On Windows, put it on any app's Start menu and taskbar shortcuts in the same step.</p>
-          <p class="tool"><code>make_icon</code> <code>app_apply_icon</code></p>
-        </div>
-        <figure>{{img:formats}}<figcaption>One design, every format.</figcaption></figure>
+        <span class="f-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span>
+        <h3>Undo anything</h3>
+        <p>Original icons are recorded before the first change and pins are backed up before every change.</p>
+        <q>Put it all back how it was.</q>
       </li>
-    </ol>
-  </div>
-</section>
-
-
-
-<section class="section handoff" id="agents">
-  <div class="section-in two">
-    <div>
-      <p class="eyebrow">Install</p>
-      <h2>Hand this to your agent</h2>
-      <p class="intro">Paste it into Claude Code, Codex or any agent with a terminal. It installs iconwright, reads how to use it, and checks your PC.</p>
-      <p>Agents can also read <a href="/llms.txt">llms.txt</a>, and every docs page as Markdown (add <code>.md</code> to its address).</p>
-    </div>
-    <pre><code>{{agentPrompt}}</code></pre>
-  </div>
-</section>
-
-<section class="section">
-  <div class="section-in two">
-    <div>
-      <p class="eyebrow">Safety</p>
-      <h2>Safe to try</h2>
-      <p class="intro">iconwright changes shortcuts and one registry value, the same things you'd change by hand. Everything it changes, it can put back.</p>
-      <p class="links"><a href="/docs/safety">Safety and risks →</a></p>
-    </div>
-    <ul class="facts">
-      <li><b>Undo for everything</b>Original icons are recorded before the first change; the pinned-apps list is backed up before every change.</li>
-      <li><b>One Explorer restart per change</b>Pin, unpin and reorder in a single call, with a dry run to check first.</li>
-      <li><b>Rolls back on failure</b>If a pin change fails halfway, the registry and shortcuts go back exactly as they were.</li>
-      <li><b>Stays on your PC</b>The only network calls are icon searches and downloads from Iconify.</li>
     </ul>
   </div>
 </section>
 
 <section class="section">
   <div class="section-in">
-    <p class="eyebrow">Compatibility</p>
-    <h2>Where it runs</h2>
-    <div class="table-wrap">
-    <table class="matrix">
-      <thead><tr><th scope="col"></th><th scope="col">Design and export</th><th scope="col">Taskbar and desktop</th></tr></thead>
-      <tbody>
-        <tr><th scope="row">Windows 11 and 10</th><td>Yes</td><td>Yes</td></tr>
-        <tr><th scope="row">macOS and Linux</th><td>Yes</td><td>No (these change Windows itself)</td></tr>
-        <tr><th scope="row">Agents</th><td colspan="2">Claude Code (plugin with a skill and slash commands), Codex, Cursor, VS Code and any client that speaks MCP</td></tr>
-      </tbody>
-    </table>
+    <p class="eyebrow">Custom icons</p>
+    <h2>When no icon fits, it designs one</h2>
+    <p class="intro">Your agent searches more than 200,000 open-source icons and logos, compares styles side by side, and shows you the result where it will live before anything is saved.</p>
+    <ol class="flow">
+      <li><b>Find artwork</b><code>search_icons</code></li>
+      <li><b>Compare looks</b><code>design_icons</code></li>
+      <li><b>See it in place</b><code>preview_icon</code></li>
+      <li><b>Apply or export</b><code>app_apply_icon</code> <code>make_icon</code></li>
+    </ol>
+    <div class="gallery">
+      {{gallery}}
+    </div>
+    <div class="gallery-foot">
+      <p>One design, exported as a Windows <code>.ico</code>, a macOS <code>.icns</code>, a full favicon and web-app set, or PNGs at every size.</p>
+      <p class="links"><a href="/studio/">Design one in the studio →</a> <a href="/docs/design">Design guide →</a></p>
+    </div>
+  </div>
+</section>
+
+<section class="section setup" id="agents">
+  <div class="section-in two">
+    <div>
+      <p class="eyebrow">Set up</p>
+      <h2>Up and running in a minute</h2>
+      <ol class="setup-steps">
+        <li><b>Copy the prompt</b>It tells your agent how to install iconwright and where to learn it.</li>
+        <li><b>Paste it into your agent</b>Claude Code, Codex, Cursor, or any agent with a terminal.</li>
+        <li><b>Ask for a change</b>Try “Make my taskbar icons white”, then “undo”.</li>
+      </ol>
+      <p class="fine">Using Claude Code? Run <code>/plugin marketplace add JayceeGupta/iconwright</code>, then <code>/plugin install iconwright@icon-playground</code>. Agents can also read <a href="/llms.txt">llms.txt</a>.</p>
+    </div>
+    <pre id="setup-prompt"><code>{{agentPrompt}}</code></pre>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-in">
+    <p class="eyebrow">Safety</p>
+    <h2>Safe to try</h2>
+    <p class="intro">iconwright changes shortcuts and one registry value, the same things you could change by hand. <a href="/docs/safety">Safety and risks</a></p>
+    <ul class="facts">
+      <li><b>Undo for everything</b>Original icons and pinned apps are saved before they change.</li>
+      <li><b>One restart per change</b>Pin changes are batched into one Explorer restart, with a dry run to check first.</li>
+      <li><b>Rolls back on failure</b>If a pin change fails halfway, everything goes back exactly as it was.</li>
+      <li><b>Stays on your PC</b>The only network calls are icon searches and downloads from Iconify.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="cta-in">
+    <img src="/icon.svg" alt="" width="56" height="56">
+    <h2>Make your taskbar yours</h2>
+    <p>Taskbar and desktop changes run on Windows 10 and 11. Designing and exporting icons also runs on macOS and Linux.</p>
+    <div class="actions">
+      <button class="btn primary lg" type="button" data-copy-from="#setup-prompt" data-copied="Copied. Paste it into your agent">{{icon:copy}}<span>Copy the setup prompt</span></button>
+      <a class="btn lg" href="/docs/getting-started">Read the docs</a>
     </div>
   </div>
 </section>

@@ -2,12 +2,14 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
-async function copy(text, button, done = 'Copied') {
+async function copy(text, button, done = 'Copied', ms = 1600) {
   const label = button.querySelector('span') ?? button;
-  const old = label.textContent;
+  const old = label.dataset.label ?? label.textContent;
+  label.dataset.label = old;
   try { await navigator.clipboard.writeText(text); label.textContent = done; }
   catch { label.textContent = 'Copy failed'; }
-  setTimeout(() => { label.textContent = old; }, 1600);
+  clearTimeout(button.copyTimer);
+  button.copyTimer = setTimeout(() => { label.textContent = old; }, ms);
 }
 
 for (const pre of $$('pre')) {
@@ -19,6 +21,32 @@ for (const pre of $$('pre')) {
 for (const b of $$('[data-copy-md]')) {
   b.addEventListener('click', async () => copy(await (await fetch(b.dataset.copyMd)).text(), b, 'Copied'));
 }
+
+for (const b of $$('[data-copy-from]')) {
+  b.addEventListener('click', () => copy($(`${b.dataset.copyFrom} code`)?.innerText ?? '', b, b.dataset.copied ?? 'Copied', 3200));
+}
+
+// ---------- home showcase tabs ----------
+const tabs = $$('.show-tabs [role="tab"]');
+function pickTab(tab, focus = false) {
+  for (const t of tabs) {
+    const on = t === tab;
+    t.setAttribute('aria-selected', String(on));
+    t.tabIndex = on ? 0 : -1;
+    document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+  }
+  tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (focus) tab.focus();
+}
+tabs.forEach((t, i) => {
+  t.addEventListener('click', () => pickTab(t));
+  t.addEventListener('keydown', (e) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (step) { e.preventDefault(); pickTab(tabs[(i + step + tabs.length) % tabs.length], true); }
+  });
+});
+// Fetch the other examples once the page has loaded, so switching is instant.
+if (tabs.length) addEventListener('load', () => { for (const img of $$('.show-panel img')) img.loading = 'eager'; });
 
 // ---------- theme ----------
 for (const b of $$('[data-theme-toggle]')) b.addEventListener('click', () => {
