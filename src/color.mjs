@@ -121,9 +121,13 @@ export function safeColor(value) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// Paints every fill and stroke one color (gradient fills too). Masks and clip paths are left
+// alone: their colors define shapes, not looks.
 export function recolorSvg(svg, color) {
   const target = safeColor(color);
-  const colorValue = '(?:currentColor|#[\\da-f]{3,8}\\b|rgba?\\([^)]*\\)|hsla?\\([^)]*\\)|[a-z]+)';
+  const kept = [];
+  svg = svg.replace(/<(mask|clipPath)\b[\s\S]*?<\/\1\s*>/gi, (m) => `<!--iconwright-keep-${kept.push(m) - 1}-->`);
+  const colorValue = '(?:currentColor|#[\\da-f]{3,8}\\b|rgba?\\([^)]*\\)|hsla?\\([^)]*\\)|url\\([^)]*\\)|[a-z]+)';
   const fillStroke = new RegExp(`(\\b(?:fill|stroke)\\s*=\\s*)(["'])\\s*(${colorValue})\\s*\\2`, 'gi');
   let found = false;
   svg = svg.replace(fillStroke, (whole, lead, quote, value) => {
@@ -134,16 +138,13 @@ export function recolorSvg(svg, color) {
   // Inline CSS declarations can contain colors that are not presentation attributes.
   svg = svg.replace(/(\b(?:fill|stroke)\s*:\s*)([^;"'}]+)/gi, (whole, lead, value) => {
     const trimmed = value.trim();
-    if (/^(?:none|transparent)$/i.test(trimmed) || /^url\(/i.test(trimmed)) return whole;
+    if (/^(?:none|transparent)$/i.test(trimmed)) return whole;
     found = true;
     return `${lead}${target}`;
   });
-  if (!found) {
-    if (/\bfill\s*=\s*(["'])[^"']*\1/i.test(svg)) {
-      svg = svg.replace(/\bfill\s*=\s*(["'])[^"']*\1/i, `fill="${target}"`);
-    } else svg = svg.replace(/<svg\b/i, `<svg fill="${target}"`);
-  }
-  return svg;
+  // No colors written anywhere: shapes use the default (black) fill, so set it on the root.
+  if (!found) svg = svg.replace(/<svg\b/i, `<svg fill="${target}"`);
+  return svg.replace(/<!--iconwright-keep-(\d+)-->/g, (_, i) => kept[Number(i)]);
 }
 
 
@@ -181,8 +182,10 @@ export function parsePaint(value, id = 'bg') {
     const offset = pos ? Math.max(0, Math.min(100, Number(pos[1]))) : (i / (parts.length - 1)) * 100;
     return `<stop offset="${offset}%" stop-color="rgb(${color.r},${color.g},${color.b})" stop-opacity="${color.alpha}"/>`;
   });
-  // CSS angles: 0deg points up, 90deg right. Map to a vector across the unit box.
-  const rad = (angle * Math.PI) / 180, dx = Math.sin(rad) / 2, dy = -Math.cos(rad) / 2;
+  // CSS angles: 0deg points up, 90deg right. Like CSS, the line spans the whole box at any
+  // angle (corner to corner at 45deg), so it is |sin| + |cos| long in a unit square.
+  const rad = (angle * Math.PI) / 180, half = (Math.abs(Math.sin(rad)) + Math.abs(Math.cos(rad))) / 2;
+  const dx = Math.sin(rad) * half, dy = -Math.cos(rad) * half;
   const f = (n) => Number(n.toFixed(4));
   const defs = `<linearGradient id="${id}" x1="${f(0.5 - dx)}" y1="${f(0.5 - dy)}" x2="${f(0.5 + dx)}" y2="${f(0.5 + dy)}">${stops.join('')}</linearGradient>`;
   return { fill: `url(#${id})`, defs };

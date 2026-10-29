@@ -117,7 +117,7 @@ Apps and taskbar (Windows)
   restore-pins               Put the pinned-apps list back: --from last|original
 
 Desktop (Windows)
-  desktop list | move | arrange | size | options | system | set-icon | restore | save | load
+  desktop list | move | arrange | size | options | system | apply | restore | save | load
 
 Checks (Windows)
   doctor                     Check this PC (changes nothing)

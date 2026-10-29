@@ -129,7 +129,7 @@ function Find-Apps([string]$q) {
 function Resolve-App([string]$name) {
   if (-not $name) { Fail 'Missing -App' }
   $m = @(Find-Apps $name)
-  if ($m.Count -eq 0) { Fail "No Start menu app matches '$name'. Find the exact name with list_apps (CLI: iconwright apps <text>)." }
+  if ($m.Count -eq 0) { Fail "No Start menu app matches '$name'. Find the exact name with find_apps (CLI: iconwright apps <text>)." }
   if ($m.Count -gt 1) {
     Fail ("'$name' is ambiguous: " + (($m | Select-Object -First 8 | ForEach-Object { "$($_.Name) [$($_.AppID)]" }) -join '; '))
   }
@@ -482,6 +482,9 @@ function Get-PinNames($paths) { @($paths | ForEach-Object { [IO.Path]::GetFileNa
 
 # Applies pin, unpin and reorder requests as one planned Taskband change.
 function Cmd-Pins($pinInfos, $unpinInfos, $orderInfos, [int]$pos) {
+  # The same app named twice (or by two spellings that resolve to it) counts once.
+  $unique = { param($infos) $seen = @{}; @($infos | Where-Object { $_ -and -not $seen.ContainsKey($_.name) } | ForEach-Object { $seen[$_.name] = 1; $_ }) }
+  $pinInfos = & $unique $pinInfos; $unpinInfos = & $unique $unpinInfos
   $list = @([Iconwright.Taskband]::List())
   $pinPaths = @{}; $unpinPaths = @{}; $orderPaths = @{}
   $already = @(); $todo = @()
@@ -664,7 +667,7 @@ function Cmd-Doctor {
 $script:Lock = New-Object Threading.Mutex($false, 'Local\iconwright-change')
 $script:Locked = $false
 function Enter-Lock([string]$cmd) {
-  if ($cmd -in 'apps', 'help' -or ($cmd -eq 'pins' -and $DryRun)) { return }
+  if ($cmd -in 'apps', 'help') { return }   # dry runs lock too, so they never read a half-made change
   $got = $false
   try { $got = $script:Lock.WaitOne([TimeSpan]::FromSeconds(120)) } catch [Threading.AbandonedMutexException] { $got = $true }
   if (-not $got) { Fail 'Another iconwright change is still running; try again when it finishes.' }

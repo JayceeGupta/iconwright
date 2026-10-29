@@ -3,7 +3,7 @@
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import pngToIco from 'png-to-ico';
 import { loadSource } from './source.mjs';
@@ -48,8 +48,9 @@ async function sourceKey(ref) {
   const value = String(ref).trim();
   if (value.startsWith('<')) return 'svg:' + createHash('sha1').update(value).digest('hex');
   if (/^[a-z0-9-]+:[a-z0-9-]+$/i.test(value) && !/^[a-z]:/i.test(value)) return 'id:' + value;
-  const s = await stat(value).catch(() => null);
-  return `file:${path.resolve(value)}:${s?.mtimeMs}:${s?.size}`;
+  // Files are keyed by content: an edit that keeps the size and time still shows up.
+  const data = await readFile(value).catch(() => null);
+  return data ? 'file:' + createHash('sha1').update(data).digest('hex') : `missing:${path.resolve(value)}`;
 }
 
 async function sourcePng(source, color) {
@@ -73,7 +74,8 @@ async function glyph(ref, color) {
   const key = `${await sourceKey(ref)}|${color ?? ''}`;
   if (glyphCache.has(key)) { const hit = glyphCache.get(key); glyphCache.delete(key); glyphCache.set(key, hit); return hit; }
   const png = await sourcePng(await loadSource(ref), color);
-  const trimmed = await sharp(png).trim({ threshold: 1 }).png().toBuffer().catch(() => png);   // fully transparent: keep as is
+  // Trim transparent margins only; artwork with an opaque background keeps it.
+  const trimmed = await sharp(png).trim({ background: '#00000000', threshold: 1 }).png().toBuffer().catch(() => png);
   glyphCache.set(key, trimmed);
   if (glyphCache.size > GLYPH_CACHE_MAX) glyphCache.delete(glyphCache.keys().next().value);
   return trimmed;
@@ -137,6 +139,17 @@ export async function renderMaster(o) {
   return sharp({ create: { width: MASTER, height: MASTER, channels: 4, background: CLEAR } }).composite(layers).png().toBuffer();
 }
 
+/** A plate color that contrasts with the icon: dark behind light artwork, white otherwise. */
+export async function plateColor(png) {
+  const { data } = await sharp(png).resize(64, 64, fit()).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let sum = 0, n = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue;
+    sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]; n++;
+  }
+  return n && sum / n / 255 > 0.6 ? '#1f2228' : '#ffffff';
+}
+
 /** The quick look: the icon at 48 and 24 px on a dark and a light background (240x80). */
 export async function previewPng(master) {
   const tileW = 120, tileH = 80, layers = [];
@@ -177,8 +190,12 @@ export async function makeIcon(o) {
     if (formats.includes('icns')) out.icns = await fm.writeIcns(master, path.join(outDir, `${name}.icns`));
     if (formats.includes('pngset')) out.pngset = await fm.writePngSet(master, outDir, name);
     if (formats.includes('web')) {
-      const bg = o.bg && !/gradient/i.test(o.bg) && o.bg !== 'transparent' ? o.bg : undefined;
-      out.web = (await fm.writeFaviconBundle(master, outDir, name, { maskableBg: bg })).dir;
+      // Android crops maskable icons to any shape: with a background, redraw it full-bleed with
+      // the artwork inside the safe zone; without one, put it on a contrasting plate.
+      const hasBg = o.bg && o.bg !== 'transparent';
+      const maskable = hasBg ? await renderMaster({ ...o, shape: 'square', padding: Math.max(0.24, Number(o.padding ?? 0.2)) }) : undefined;
+      const plate = hasBg && !/gradient/i.test(o.bg) ? o.bg : await plateColor(master);
+      out.web = (await fm.writeFaviconBundle(master, outDir, name, { maskableBg: plate, maskable })).dir;
     }
   }
   if (o.preview !== false) {

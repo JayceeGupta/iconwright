@@ -81,7 +81,8 @@ async function opaquePng(master, size, background, artworkSize = size) {
     .png().toBuffer();
 }
 
-export async function writeFaviconBundle(master, outDir, name, { maskableBg, svg } = {}) {
+// maskable: an optional full-bleed 1024 px image (artwork inside the safe zone) used as is.
+export async function writeFaviconBundle(master, outDir, name, { maskableBg, svg, maskable } = {}) {
   await validateMaster(master);
   const dir = path.join(outDir, `${name}-web`);
   await ensureDir(dir);
@@ -94,7 +95,9 @@ export async function writeFaviconBundle(master, outDir, name, { maskableBg, svg
   await atomicWrite(path.join(dir, 'apple-touch-icon.png'), await opaquePng(master, 180, bg));
   await atomicWrite(path.join(dir, 'icon-192.png'), await resized(master, 192));
   await atomicWrite(path.join(dir, 'icon-512.png'), await resized(master, 512));
-  await atomicWrite(path.join(dir, 'icon-maskable-512.png'), await opaquePng(master, 512, bg, 410));
+  await atomicWrite(path.join(dir, 'icon-maskable-512.png'), maskable
+    ? await sharp(maskable).resize(512, 512, { kernel: 'lanczos3' }).flatten({ background: bg }).png().toBuffer()
+    : await opaquePng(master, 512, bg, 410));
   if (svg !== undefined) await atomicWrite(path.join(dir, 'icon.svg'), svg);
 
   const icons = [

@@ -12,12 +12,16 @@ const { version } = createRequire(import.meta.url)('../package.json');
 const isWindows = process.platform === 'win32';
 
 const server = new McpServer({ name: 'iconwright', version }, {
-  instructions: isWindows ? INSTRUCTIONS : `${INSTRUCTIONS.split('\n- Exact app names')[0]}\nTaskbar and desktop tools are only offered on Windows.`,
+  instructions: isWindows ? INSTRUCTIONS : 'iconwright designs icons: search_icons (numbered sheet) → design_icons (rows = sources, columns = style strings like "color=white bg=#2d5ba6 shape=squircle"; the user picks a cell like "B2") → preview_icon (mockups) → make_icon (ico, icns, web favicons, PNGs). Show each image and let the user choose. Taskbar and desktop tools exist only on Windows.',
 });
 
 // MCP calls share one long-lived PowerShell process (much faster); ICONWRIGHT_NO_WORKER=1 opts out.
 const worker = isWindows && !process.env.ICONWRIGHT_NO_WORKER ? new WinWorker() : null;
-const ctx = { isWindows, win: worker ? (command, options) => worker.call(command, options) : winOnce };
+// Tools that change the PC run one at a time, start to finish (several Windows calls each),
+// so two changes, or a change and the studio, never interleave.
+let gate = Promise.resolve();
+const exclusive = (fn) => { const run = gate.then(fn); gate = run.catch(() => {}); return run; };
+const ctx = { isWindows, exclusive, win: worker ? (command, options) => worker.call(command, options) : winOnce };
 
 for (const t of TOOLS) {
   if (t.windows && !isWindows) continue;
@@ -28,7 +32,7 @@ for (const t of TOOLS) {
     annotations: t.annotations,
   }, async (args) => {
     try {
-      const r = await t.handler(args ?? {}, ctx);
+      const r = t.annotations?.readOnlyHint ? await t.handler(args ?? {}, ctx) : await exclusive(() => t.handler(args ?? {}, ctx));
       const content = [{ type: 'text', text: toJson(r.json) }];
       if (r.image) content.push({ type: 'image', data: Buffer.from(r.image).toString('base64'), mimeType: 'image/png' });
       return { content };

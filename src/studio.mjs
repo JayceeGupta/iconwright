@@ -30,7 +30,11 @@ function send(res, status, body, type = 'application/json; charset=utf-8', extra
 }
 
 async function readBody(req) {
-  if (req.body !== undefined) return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;   // Vercel pre-parses
+  if (req.body !== undefined) {   // Vercel pre-parses bodies; still hold them to the same limit
+    const text = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+    if (text.length > MAX_BODY) throw new HttpError(413, 'Request too large (max 1 MB)');
+    return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body;
+  }
   const chunks = []; let size = 0;
   for await (const c of req) { size += c.length; if (size > MAX_BODY) throw new HttpError(413, 'Request too large (max 1 MB)'); chunks.push(c); }
   const text = Buffer.concat(chunks).toString('utf8');
@@ -50,7 +54,7 @@ const list = (v) => (v == null || v === '' ? [] : Array.isArray(v) ? v : String(
  * The API + static handler. opts: local (bool), token (local only), win (Windows bridge or null).
  * Returns (req, res) => Promise.
  */
-export function createStudioHandler({ local = false, token = null, win = null } = {}) {
+export function createStudioHandler({ local = false, token = null, win = null, exclusive = (fn) => fn() } = {}) {
   // A source the current mode accepts, as something renderMaster can load.
   async function source(value) {
     const s = String(value ?? '').trim();
@@ -96,7 +100,7 @@ export function createStudioHandler({ local = false, token = null, win = null } 
       return { raw: await resizePng(await master(p), size), type: 'image/png' };
     },
     async scenes(p) {
-      const scenes = list(p.scenes);
+      const scenes = [...new Set(list(p.scenes))];   // each scene at most once
       const bad = scenes.filter((s) => !SCENES.includes(s));
       if (bad.length) throw new HttpError(400, `Unknown scene: ${bad.join(', ')}`);
       const scale = [1, 1.5, 2].includes(Number(p.scale)) ? Number(p.scale) : 1;
@@ -155,7 +159,7 @@ export function createStudioHandler({ local = false, token = null, win = null } 
       const apps = list(p.apps);
       if (!apps.length) throw new HttpError(400, 'Choose at least one app.');
       const src = String(p.source) === 'app' ? 'app' : await source(p.source);
-      const r = await applyIcons({ apps, source: src, ...style(p) }, win);
+      const r = await exclusive(() => applyIcons({ apps, source: src, ...style(p) }, win));
       delete r.preview;
       return r;
     },
@@ -207,10 +211,10 @@ export function openBrowser(url) {
  * One studio per process: calling again returns the running one.
  */
 let running = null;
-export async function startStudio({ port = 0, win = null, keepAlive = false } = {}) {
+export async function startStudio({ port = 0, win = null, exclusive, keepAlive = false } = {}) {
   if (running) return running;
   const token = randomBytes(16).toString('hex');
-  const server = http.createServer(createStudioHandler({ local: true, token, win }));
+  const server = http.createServer(createStudioHandler({ local: true, token, win, exclusive }));
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
   const base = `http://127.0.0.1:${server.address().port}/?t=${token}`;
   running = {

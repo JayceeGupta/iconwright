@@ -7,8 +7,10 @@ This page explains how iconwright does each thing, in plain terms. For byte-leve
 ```text
  Claude Code ─┐
  Codex ───────┼──>  MCP server ─┐
- other agents ┘                 ├──> icon maker (Node + sharp)        any OS
- you ─────────────>  CLI ───────┘
+ other agents ┘                 │
+ you ─────────────>  CLI ───────┼──> icon engine (Node + sharp)        any OS
+ you ─────────────>  studio ────┘     search, grids, scenes, export
+                                │
                                 └──> Windows layer (PowerShell + C#)   Windows only
                                         │
                                         ├─ shortcut files (.lnk, .url, desktop.ini)
@@ -16,8 +18,8 @@ This page explains how iconwright does each thing, in plain terms. For byte-leve
                                         └─ Explorer (desktop icon view, taskbar)
 ```
 
-- The **MCP server** and the **CLI** are two front doors to the same code. Agents use MCP; people and scripts use the CLI. Both return compact JSON.
-- The **icon maker** is plain Node.js, so it runs anywhere.
+- The **MCP server**, the **CLI** and the **studio** are three front doors to the same code. Agents use MCP; people use the CLI or the studio. The MCP tools are defined once, as data, in `src/tools.mjs`; the docs' [tool reference](tools.md) is generated from the same table.
+- The **icon engine** is plain Node.js, so it runs anywhere, including the hosted studio's server.
 - The **Windows layer** is a PowerShell script plus a small C# helper. The helper is compiled once on first use and cached in `%LOCALAPPDATA%\iconwright\bin`. It does the low-level work: shortcut files, the pinned-apps list, the desktop view, icon extraction and screenshots.
 
 ### Speed: one PowerShell for the whole session
@@ -30,11 +32,15 @@ Every MCP tool rejects arguments it doesn't know, and the CLI rejects unknown op
 
 ## Making an icon
 
-1. **Get the artwork.** An Iconify name like `simple-icons:spotify` is downloaded as SVG from the [Iconify API](https://iconify.design). Files (SVG, PNG, JPEG, WebP, ICO) are read from disk. For an `.ico`, the largest image inside it is used.
-2. **Recolor** (optional). For SVGs, iconwright rewrites the fill and stroke colors. For raster images, it paints every visible pixel the new color and keeps the transparency, so multi-colored pictures become single-colored.
-3. **Fit it.** Transparent edges are trimmed, then the artwork is centered on a 1024×1024 canvas with some padding.
-4. **Background** (optional). A square, rounded square or circle in the `--bg` color goes behind it.
-5. **Export.** The `.ico` holds seven sizes (256, 128, 64, 48, 32, 24 and 16 px), so Windows always has a sharp version. iconwright also writes a PNG and a **preview**: the icon at taskbar size on a dark and a light background, which agents can look at before applying.
+1. **Get the artwork.** An Iconify id like `simple-icons:spotify` is fetched from the [Iconify API](https://iconify.design); many ids are fetched together, one request per icon set, and kept in a disk cache. Files (SVG, PNG, JPEG, WebP, ICO) are read from disk; for an `.ico`, the largest image inside it is used. On Windows, `app:<name>` extracts an installed app's current icon at 256 px.
+2. **Recolor** (optional). For SVGs, iconwright rewrites the fill and stroke colors, leaving masks and clip paths alone. For raster images, it paints every visible pixel the new color and keeps the transparency, so multicolored pictures become single-colored.
+3. **Fit it.** Transparent edges are trimmed, then the artwork is centered on a 1024×1024 canvas with some padding. This recolored, trimmed artwork is cached in memory, so trying ten styles on one icon only does this work once.
+4. **Background** (optional). A square, rounded square, squircle or circle, in a color or a CSS-style gradient, goes behind it, with an optional soft shadow under the artwork.
+5. **Export.** The `.ico` holds nine sizes (16, 20, 24, 32, 40, 48, 64, 128 and 256 px), so Windows has a sharp image at every display scaling. The `.icns`, favicon set and PNG set are made from the same 1024 px master. A small **preview** (the icon at 48 and 24 px on dark and light) comes back with every result.
+
+### Grids and scenes
+
+Design grids, search sheets and scene mockups are drawn with the same engine. Text in them uses a bundled copy of the Inter font, so the images look the same on Windows, macOS, Linux and the hosted studio's server. Scene geometry follows each platform's published sizes: 24 px taskbar icons in a 48 px bar, 32 px Start icons, 48 px desktop icons, and the iOS and Android masks.
 
 When an agent applies a new look, the icon file name gets a short code based on the style (for example `spotify-3fa9c1.ico`). Windows caches icons by file path, so a new name is the reliable way to make it show the new look.
 
@@ -62,7 +68,7 @@ With `source: "app"`, iconwright starts from the icon the app had before iconwri
 
 There's no official way for a program to pin apps to the Windows 11 taskbar. Windows has a pinning interface, but it ignores calls from outside Explorer itself, and the "Pin to taskbar" menu item can't be triggered by other programs.
 
-What does work is editing the list Explorer saves its pins in. It lives in the registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband`) as two binary values: one with the location of each pinned shortcut, one with a copy of each shortcut. Explorer only reads them at startup, so iconwright:
+What does work is editing the list Explorer saves its pins in. All pin changes in one request (pin some apps, unpin others, move some) are planned together and written in one go, so they cost one Explorer restart. It lives in the registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband`) as two binary values: one with the location of each pinned shortcut, one with a copy of each shortcut. Explorer only reads them at startup, so iconwright:
 
 1. backs up the list (and the pinned shortcuts),
 2. stops Explorer,
@@ -117,9 +123,15 @@ Showing and hiding the system icons uses the same setting as Windows' *Desktop i
 | Path | What it does |
 |---|---|
 | `bin/iconwright.mjs`, `bin/iconwright-mcp.mjs` | Entry points. On first run they install dependencies. |
-| `src/mcp.mjs` | MCP server: tool definitions |
+| `src/tools.mjs` | Every MCP tool and prompt, as data, plus the server instructions |
+| `src/mcp.mjs` | MCP server: registers the tools, serves a compact tool list, runs changes one at a time |
 | `src/cli.mjs`, `src/cli-win.mjs` | CLI commands |
-| `src/source.mjs`, `src/render.mjs`, `src/ico.mjs`, `src/sheet.mjs` | Icon maker |
+| `src/render.mjs`, `src/color.mjs` | Icon engine: styles, style strings, colors and gradients, `.ico` export |
+| `src/source.mjs`, `src/ico.mjs` | Artwork: Iconify search and fetch with a disk cache, files, `.ico` decoding |
+| `src/design.mjs`, `src/scenes.mjs`, `src/draw.mjs` | Search sheets, design grids, scene mockups, and the drawing kit they share |
+| `src/formats.mjs`, `src/zip.mjs` | `.icns`, favicon sets, PNG sets; zips for studio downloads |
+| `src/studio.mjs`, `studio/`, `api/studio.mjs` | The studio: its HTTP API (local and hosted), its web page, and the hosted function |
+| `src/sheet.mjs` | Side-by-side sheets of image files |
 | `src/apply.mjs` | "Make an icon and apply it" for apps and desktop items |
 | `src/win.mjs` | Runs the Windows layer: one process per call (CLI) or a long-lived worker (MCP) |
 | `src/args.mjs` | Strict CLI option parsing |

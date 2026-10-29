@@ -27,7 +27,8 @@ async function plainIcon(svg, size) {
 }
 
 /** Numbered sheet of Iconify ids. Returns { png, missing } (missing: ids with no artwork). */
-export async function searchSheet(ids, { columns = 8, size = 40 } = {}) {
+export async function searchSheet(rawIds, { columns = 8, size = 40 } = {}) {
+  const ids = rawIds.map((id) => String(id).trim());
   const svgs = await fetchIcons(ids);
   const cols = Math.min(columns, ids.length), cellW = 64, cellH = 72;
   const rows = Math.ceil(ids.length / cols);
@@ -37,9 +38,14 @@ export async function searchSheet(ids, { columns = 8, size = 40 } = {}) {
   await mapLimit(ids, 6, async (id, i) => {
     const x = (i % cols) * cellW, y = Math.floor(i / cols) * cellH;
     const svg = svgs.get(id);
-    if (svg) {
-      try { layers.push({ input: await plainIcon(svg, size), left: x + (cellW - size) / 2, top: y + 8 }); } catch { missing.push(id); }
-    } else missing.push(id);
+    let icon = null;
+    if (svg) icon = await plainIcon(svg, size).catch(() => null);
+    if (icon) layers.push({ input: icon, left: x + (cellW - size) / 2, top: y + 8 });
+    else {
+      // A visible gap marker, so an empty cell is never mistaken for a blank icon.
+      missing.push(id);
+      layers.push(at(await text('missing', { size: 10, color: '#b3261e' }), x + cellW / 2, y + 22, 'top-center'));
+    }
     layers.push(at(await text(String(i + 1), { size: 10, color: '#6b6b76' }), x + cellW / 2, y + 52, 'top-center'));
   });
   return { png: await compose(cols * cellW, rows * cellH, layers, '#ececef'), missing };

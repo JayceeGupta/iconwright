@@ -22,6 +22,7 @@ Read-only.
 | `limit` | integer | Results (default 24) |
 | `start` | integer | Skip this many results (next page) |
 | `collections` | string[] | Only these icon sets, e.g. ["mdi", "ph", "lucide"] |
+| `palette` | "mono" \| "color" | mono: single-color icons (recolor cleanly); color: multicolor |
 | `preview` | boolean | Include the contact sheet (default true) |
 
 ### `design_icons`
@@ -267,7 +268,7 @@ Read-only. Windows only.
 
 ## Prompts
 
-Clients that support MCP prompts show these as commands (in Claude Code: `/mcp__iconwright__<name>`).
+Clients that support MCP prompts show these as commands; in Claude Code they're in the `/` menu, marked (MCP).
 
 - **restyle-taskbar**: Make every pinned taskbar icon match one look (e.g. all white).
 - **design-icon**: Design an icon from an idea, compare options, preview it in context, then export or apply it.

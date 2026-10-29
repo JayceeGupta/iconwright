@@ -26,7 +26,8 @@ const restartOpts = {
   noRestart: z.boolean().optional().describe('Write the change but don\'t restart Explorer (shows after the next restart)'),
   restartCooldown: z.number().int().min(0).max(600).optional().describe('Wait until this many seconds since the last Explorer restart (helps taskbar styling tools)'),
 };
-const appNames = (list) => list.map((s) => s.replace(/^app:/i, ''));
+// App names without an "app:" prefix, each once (a repeated name would pin an app twice).
+const appNames = (list) => [...new Set(list.map((s) => s.replace(/^app:/i, '').trim()))];
 
 // ---------- result helpers ----------
 const json = (value) => ({ json: value });
@@ -48,7 +49,15 @@ async function resolveSources(list, ctx) {
 }
 
 // The user's pinned taskbar apps as scene neighbors (Windows); null when unavailable.
+// Extracting ten app icons takes a few seconds, so the list is reused for two minutes.
+let neighborCache = { at: 0, list: null };
 async function myNeighbors(ctx) {
+  if (Date.now() - neighborCache.at < 120_000) return neighborCache.list;
+  const list = await readNeighbors(ctx);
+  neighborCache = { at: Date.now(), list };
+  return list;
+}
+async function readNeighbors(ctx) {
   try {
     const status = await ctx.win('status');
     const names = status.pins.map((p) => p.name).filter((n) => n && n !== '(unknown)').slice(0, 10);
@@ -154,7 +163,7 @@ export const TOOLS = [
     async handler({ source: src, style: st, label, open = true }, ctx) {
       if (st) parseStyle(st);
       const { startStudio, openBrowser } = await import('./studio.mjs');
-      const studio = await startStudio({ win: ctx.isWindows ? ctx.win : null });
+      const studio = await startStudio({ win: ctx.isWindows ? ctx.win : null, exclusive: ctx.exclusive });
       const url = studio.url({ source: src, style: st, label });
       if (open) openBrowser(url);
       return json({ url, note: 'Runs while this MCP server runs; local only.' });
@@ -193,9 +202,13 @@ export const TOOLS = [
       Object.assign(o, parseStyle(st));
       if (Boolean(o.source) === Boolean(icon)) throw new Error('give exactly one of source (to make an icon) or icon (an existing .ico)');
       if (icon) {
-        const results = [];
-        for (const app of appNames(list)) results.push({ app, ...(await ctx.win('set-icon', { app, icon, iconIndex })) });
-        return json({ results });
+        const names = appNames(list), results = [];
+        for (const app of names) results.push({ app, ...(await ctx.win('set-icon', { app, icon, iconIndex })) });
+        const out = { results };
+        const restart = { noRestart: o.noRestart, restartCooldown: o.restartCooldown };
+        if (o.pin) out.pin = await ctx.win('pins', { pin: names, ...restart });
+        if (o.refresh && !out.pin?.restarted) out.refresh = await ctx.win('refresh', restart);
+        return json(out);
       }
       const r = await applyIcons({ ...o, apps: appNames(list) }, ctx.win);
       const { preview, ...rest } = r;
@@ -375,9 +388,9 @@ export const PROMPTS = [
     args: { look: z.string().describe('The look, e.g. "white", "black on white circles", "pastel squircles"') },
     text: ({ look }) => `Restyle all my pinned taskbar icons to this look: ${look}.
 1. taskbar_status for the pinned app names.
-2. design_icons with 2-3 of them as "app:<name>" sources and 3-4 style columns that fit the look; show me the grid and let me pick a column.
-3. preview_icon one app with the chosen style (taskbar + sizes scenes) so I can see it on light and dark.
-4. When I confirm: one app_apply_icon call with all the apps, source "app" and the chosen style, then taskbar_refresh once if the result asks, then capture the taskbar.
+2. If the look is exact (like "white"), go to step 4. Otherwise design_icons with 2-3 of the apps as "app:<name>" sources and 3-4 style columns that fit the look; show me the grid and let me pick a column.
+3. preview_icon one app with the chosen style (taskbar and sizes scenes) so I see it on light and dark.
+4. One app_apply_icon call with all the apps, source "app" and the style; taskbar_refresh once if the result asks; then capture the taskbar.
 Tell me how to undo (restore_icons with all:true).`,
   },
   {
@@ -391,8 +404,8 @@ Tell me how to undo (restore_icons with all:true).`,
 1. search_icons for 2-3 different phrasings; pick 4-6 promising ids from the sheets.
 2. design_icons: those ids as rows, 3-4 style columns (plain, on a colored squircle, gradient, inverted). Show me the grid; I'll pick a cell like "B2".
 3. Iterate: change only what I ask (color, shape, padding) with another small design_icons grid.
-4. preview_icon the winner${app ? ` labeled "${app}"` : ''} in the taskbar, desktop and sizes scenes.
-5. ${app ? `When I confirm, app_apply_icon on "${app}" with that source and style.` : 'When I confirm, make_icon with the formats I need (ask: Windows .ico, macOS .icns, web favicons).'}`,
+4. preview_icon the winner${app ? ` labeled "${app}"` : ''} in the scenes that fit where it will be used.
+5. ${app && process.platform === 'win32' ? `When I confirm, app_apply_icon on "${app}" with that source and style.` : 'When I confirm, make_icon with the formats I need (ask: Windows .ico, macOS .icns, web favicons).'}`,
   },
   {
     name: 'tidy-desktop', title: 'Tidy my desktop',
@@ -411,15 +424,13 @@ Tell me how to undo (restore_icons with all:true).`,
   },
 ];
 
-export const INSTRUCTIONS = `iconwright designs icons (any OS) and changes the Windows taskbar and desktop.
-Design loop (cheap; nothing is saved): search_icons (numbered sheet) → design_icons (grid: rows = sources, columns = styles; cells like "B2") → preview_icon (the icon on real surfaces; catches icons that vanish on light/dark) → make_icon (files) or app_apply_icon (put on apps).
-- Show the user images and let them pick; change one thing per round.
-- "app:<App name>" as a source uses an installed app's current icon (Windows).
-- Exact app names: find_apps. "All my taskbar icons white": taskbar_status, then ONE app_apply_icon with every name, source "app", color "white".
-- taskbar_pins, taskbar_refresh and taskbar_restore_backup restart Explorer (taskbar blinks, File Explorer windows close): batch everything into one call; never loop. dryRun first when unsure.
-- If a result hints at refresh, call taskbar_refresh once after all changes.
-- Save a desktop layout before arranging. Undo: restore_icons, taskbar_restore_backup, desktop_layout load.
-- capture shows the result; doctor diagnoses failures.`;
+export const INSTRUCTIONS = `iconwright designs icons on any OS and changes the Windows taskbar and desktop.
+- Exploring a look: search_icons (numbered sheet) → design_icons (rows = sources, columns = style strings; user picks a cell like "B2") → preview_icon (the icon on real surfaces) → make_icon (files) or app_apply_icon. Show each image and let the user choose; change one thing per round. open_studio hands the design to the user to adjust by hand.
+- A specific look: act directly. "All my taskbar icons white": taskbar_status, then ONE app_apply_icon with every name, source "app", style "color=white".
+- Styles are strings: "color=white bg=#2d5ba6 shape=squircle shadow". "app:<App name>" as a source is an installed app's icon (Windows).
+- taskbar_pins does pin, unpin and order in ONE call (one Explorer restart: the taskbar blinks, File Explorer windows close); dryRun first when the order matters. Exact names: find_apps or taskbar_status.
+- If a result has a refresh hint, call taskbar_refresh once after all changes. Save desktop_layout before desktop_arrange.
+- Undo: restore_icons, taskbar_restore_backup, desktop_layout load. capture shows results; doctor diagnoses failures.`;
 
 /** The tools as MCP lists them: name, title, description, input JSON Schema, annotations. */
 export function listedTools(isWindows = process.platform === 'win32') {

@@ -1,17 +1,18 @@
 # Compatibility
 
-iconwright 0.1 is an early release. This page says what has been tested, on what, and how.
+iconwright 0.2 is an early release. This page says what has been tested, on what, and how.
 
 ## Operating systems
 
-| | Make icons | Taskbar and app icons | Desktop |
+| | Design and export | Taskbar and app icons | Desktop |
 |---|---|---|---|
 | **Windows 11** | Yes | Yes (tested) | Yes (tested) |
 | **Windows 10** | Yes | Should work, not tested | Should work, not tested |
 | **macOS** | Yes (tested in CI) | No | No |
 | **Linux** | Yes (tested in CI) | No | No |
+| **Any browser** | Yes, in the online [studio](studio.md) | No | No |
 
-On macOS and Linux, iconwright only offers the icon tools (`search`, `make`, `sheet`). The Windows commands say they're Windows-only instead of failing in confusing ways. The MCP server doesn't list the Windows tools there at all.
+On macOS and Linux, iconwright offers the design tools: search, design grids, scene previews, export, and the local studio. The Windows commands say they're Windows-only instead of failing in confusing ways. The MCP server doesn't list the Windows tools there at all.
 
 **Why not Linux or macOS?** The taskbar and desktop features are built on Windows-only parts of the system: shortcut files, Explorer, the Windows registry. Linux desktops (GNOME, KDE) and macOS use completely different mechanisms (`.desktop` files and icon themes, or app bundles and the Dock). Supporting them would mean writing a separate version of the apply layer for each. It's possible, but not planned for now.
 
@@ -25,6 +26,8 @@ All on one PC: **Windows 11 build 26200**, 200% display scaling, one monitor, En
 | Change a Store app's pinned icon (Apple Music) | Seen on screen |
 | Pin a classic app (Character Map) and an Electron app | Seen on screen; the pinned button merges with the running window |
 | Pin two apps in one restart; unpin | Seen on screen |
+| Pin, then move the new pin to position 2, in one restart; then unpin (`pins`) | Pin order read back: identical to before |
+| Dry run of mixed pin, unpin and order requests, including duplicates and conflicts | Results checked against the live pin list; nothing changed |
 | Reorder pinned apps | Order read back after the restart, and seen on screen |
 | Undo pin changes from backups (`restore-pins`) | Pin order read back before and after |
 | Roll back a failed pin-list write | Forced failure; the registry bytes came back identical |
@@ -38,6 +41,8 @@ All on one PC: **Windows 11 build 26200**, 200% display scaling, one monitor, En
 | TranslucentTB failsafe detection | Seen on screen |
 | Fresh install as a Claude Code plugin (local marketplace) | Installed into a clean Claude config; MCP server connected; an agent used `doctor`, `taskbar_status` and `capture` |
 | Codex through MCP | Registered with `codex mcp add`; an agent used `doctor`, `taskbar_status` and `capture` |
+| Design grid with `app:` sources, scene previews with the user's own pinned apps, web and `.icns` export (MCP) | Images checked by eye; `.ico`, `.icns` and zip files checked by parsing them |
+| Local studio (search, ideas, kept versions, app icons, downloads) and hosted studio API | Used in a browser; hosted mode refuses file paths and unsafe SVG |
 | Icon making on Linux and macOS | GitHub Actions on Ubuntu and macOS |
 
 ## Not tested yet
@@ -57,6 +62,7 @@ If you try iconwright on one of these, please [open an issue](https://github.com
 | Area | Status | Why |
 |---|---|---|
 | Making icons | **Beta** | Automated tests on three OSes; many source formats. |
+| Design grids, scenes, studio | **Beta** | New in 0.2; tested on Windows and in CI. Scene geometry follows published platform sizes, not pixel captures. |
 | App icons | **Beta** | Uses documented shortcut settings; confirmed on screen for several app types. |
 | Desktop | **Beta** | Uses documented Windows interfaces; confirmed on screen. Tested on one PC. |
 | Pin, unpin, reorder | **Experimental** | Works and is backed up, but depends on an undocumented format that Windows updates could change. |

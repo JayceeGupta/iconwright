@@ -1,12 +1,12 @@
 {
   "name": "icon-playground",
   "owner": { "name": "Jayam Gupta" },
-  "metadata": { "description": "Icon Playground: make icons and customize the Windows taskbar and desktop." },
+  "metadata": { "description": "Icon Playground: design icons with your agent, and customize the Windows taskbar and desktop." },
   "plugins": [
     {
       "name": "iconwright",
       "source": "./",
-      "description": "Make icons and customize the Windows taskbar and desktop: change app icons, pin and reorder taskbar apps, arrange desktop icons."
+      "description": "Design icons with your agent and see them where they live: search 200,000+ icons, compare styles, preview on a taskbar, desktop and phone, export .ico, .icns and favicons, and restyle, pin and arrange the Windows taskbar and desktop."
     }
   ]
 }

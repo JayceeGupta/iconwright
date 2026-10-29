@@ -2,7 +2,7 @@
 // macOS Dock, iOS, Android) plus a pixel-true size strip. All drawn with sharp, so it works anywhere.
 // Geometry follows each platform's published metrics at 100% scale; `scale` zooms the whole scene.
 import { fileURLToPath } from 'node:url';
-import { renderMaster, resizePng } from './render.mjs';
+import { renderMaster, resizePng, plateColor } from './render.mjs';
 import { text, at, svgLayer, compose, mask } from './draw.mjs';
 import sharp from 'sharp';
 
@@ -26,6 +26,10 @@ export const DEFAULT_SCENES = ['taskbar', 'start', 'desktop', 'sizes'];
 const SEGOE_DARK = { bar: '#1c1c1c', text: '#ffffff', sub: '#c5c5c5', hover: 'rgba(255,255,255,0.07)', accent: '#4cc2ff', dot: '#a0a0a0' };
 const SEGOE_LIGHT = { bar: '#eeeeee', text: '#1b1b1b', sub: '#5d5d5d', hover: 'rgba(0,0,0,0.05)', accent: '#005fb8', dot: '#8a8a8a' };
 
+// The sample apps never change, so their masters are rendered once per process.
+let sampleMasters = null;
+const samples = () => (sampleMasters ??= Promise.all(SAMPLE_APPS.map((a) => renderMaster({ padding: 0.06, ...a, source: NEIGHBOR_DIR + a.source }).catch(() => null))));
+
 /** Builds the drawing context: the icon and neighbor icons at any pixel size, cached. */
 async function context({ master, label, neighbors, scale }) {
   const cache = new Map();
@@ -35,8 +39,8 @@ async function context({ master, label, neighbors, scale }) {
     return cache.get(k);
   };
   // Neighbors: the user's own icons (PNG/ICO files) when given, else the sample apps.
-  const others = neighbors?.length ? neighbors : SAMPLE_APPS.map((a) => ({ ...a, source: NEIGHBOR_DIR + a.source }));
-  const masters = await Promise.all(others.map((n) => renderMaster({ padding: 0.06, ...n }).catch(() => null)));
+  const others = neighbors?.length ? neighbors : SAMPLE_APPS;
+  const masters = neighbors?.length ? await Promise.all(neighbors.map((n) => renderMaster({ padding: 0.06, ...n }).catch(() => null))) : await samples();
   const pool = others.map((n, i) => ({ name: n.name, master: masters[i] })).filter((n) => n.master);
   return {
     s: (v) => Math.round(v * scale), scale, label,
@@ -226,7 +230,7 @@ async function android(c) {
     if (cornerAlpha > 200) icon = await mask(full, px, circle);
     else {
       const small = await resizePng(full, Math.round(px * 0.7));
-      const plate = await sharp({ create: { width: px, height: px, channels: 4, background: '#ffffff' } }).composite([{ input: small, gravity: 'centre' }]).png().toBuffer();
+      const plate = await sharp({ create: { width: px, height: px, channels: 4, background: await plateColor(full) } }).composite([{ input: small, gravity: 'centre' }]).png().toBuffer();
       icon = await mask(plate, px, circle);
     }
     layers.push({ input: icon, left: s(x), top: s(26) });

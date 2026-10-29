@@ -1,7 +1,7 @@
 {
   "name": "iconwright",
-  "version": "0.1.0",
-  "description": "Make icons and customize the Windows taskbar and desktop from Claude Code, Codex or any MCP client.",
+  "version": "0.2.0",
+  "description": "Design icons with your agent and see them where they live: search 200,000+ icons, compare styles, preview on a taskbar, desktop and phone, export .ico, .icns and favicons, and restyle, pin and arrange the Windows taskbar and desktop.",
   "license": "MIT",
   "author": "Jayam Gupta",
   "type": "module",
@@ -34,6 +34,8 @@
   "files": [
     "bin/",
     "src/",
+    "assets/",
+    "studio/",
     "scripts/",
     "skills/",
     ".claude-plugin/",

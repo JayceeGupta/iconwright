@@ -1,89 +1,91 @@
-<p align="center"><img src=".claude-plugin/icon.png" width="96" alt="iconwright logo"></p>
+<p align="center"><img src="assets/brand/mark.svg" width="88" height="88" alt="iconwright"></p>
 
-# iconwright
+<h1 align="center">iconwright</h1>
 
-**Ask your AI agent to restyle Windows.** iconwright lets Claude Code, Codex or any MCP client make icons and change how your taskbar and desktop look:
+<p align="center"><b>Design icons with your agent. See them where they live.</b><br>
+An MCP server, CLI and web studio for icons, and for the Windows taskbar and desktop.</p>
 
-> "Make the Spotify taskbar icon white."
-> "Pin T3 Code and move it next to VS Code."
-> "Put my desktop icons in the top-right corner and make them smaller."
-> "Undo all of that."
+<p align="center"><a href="https://iconwright.guptajayam.com">Website</a> · <a href="https://iconwright.guptajayam.com/docs/getting-started">Docs</a> · <a href="https://iconwright.guptajayam.com/studio/">Studio</a> · <a href="https://iconwright.guptajayam.com/llms.txt">llms.txt</a></p>
 
-It works as a **Claude Code plugin**, an **MCP server** (for Codex and other agents) and a plain **command-line tool**. Website and docs: **[iconwright.guptajayam.com](https://iconwright.guptajayam.com)**.
+---
 
-> **Status: early release (0.1).** Everything below works on the developer's PC (Windows 11). It hasn't been tested on many other setups yet, and pinning relies on an undocumented Windows format. Read [Safety and risks](docs/safety.md) before you use it on a machine you care about.
+Tell your agent what you want. iconwright finds the artwork among 200,000+ open-source icons, lays out options side by side, shows each one on a real taskbar, desktop and phone, then makes the files, or puts the icon straight onto your Windows taskbar.
 
-## What it can do
+![A design grid: three rocket icons in four styles](https://iconwright.guptajayam.com/img/grid.png)
 
-| | |
-|---|---|
-| **Make icons** (any OS) | Turn an [Iconify](https://icon-sets.iconify.design) icon name, SVG, PNG, JPEG, WebP or existing `.ico` into a proper Windows `.ico` (16 to 256 px). Recolor it, add a rounded or circle background, preview it on dark and light. |
-| **App icons** (Windows) | Change an app's icon on the taskbar, Start Menu and pinned shortcut. Restyle many apps in one go, from new artwork or from each app's own icon ("make all my taskbar icons white"). Running apps usually update instantly. |
-| **Taskbar** (Windows) | Pin, unpin and reorder apps. |
-| **Desktop** (Windows) | Move, arrange, resize, hide and re-icon desktop icons. Show or hide This PC, Recycle Bin and the other system icons. Save and load layouts. |
-| **Undo** (Windows) | Put back one app's icon, every icon at once, or the whole pinned-apps list from automatic backups. |
-| **Check** (Windows) | `doctor` checks your PC before you start. `capture` takes a screenshot of the taskbar or desktop so the agent can see what it changed. |
+## What it does
 
-**Mac and Linux:** only icon making works there. The taskbar and desktop features use Windows-only parts of the system, so they're not available (the commands say so instead of failing strangely).
+**Design (Windows, macOS, Linux)**
+
+- **Search** Iconify's open-source sets and brand logos; results come back as one numbered sheet.
+- **Compare** artwork × styles in one small grid; pick a cell like “B2”.
+- **Preview** on a Windows taskbar, Start menu, desktop, File Explorer, a browser tab, the macOS Dock, iOS and Android, plus true pixel sizes.
+- **Export** Windows `.ico`, macOS `.icns`, a complete favicon and web-app set, or PNGs at every size.
+- **Studio**: the same, by hand, in your browser, [online](https://iconwright.guptajayam.com/studio/) or locally.
+
+**Windows**
+
+- **Restyle app icons**, one app or your whole taskbar in one call (for example: every icon white, each from its own logo).
+- **Pin, unpin and reorder** taskbar apps in a single Explorer restart, with a dry run first if you like.
+- **Desktop**: change icons, arrange, resize, show and hide system icons, save and restore layouts.
+- **Undo everything**: originals are recorded and pin lists backed up before every change.
 
 ## Install
 
-You need **Windows 10 or 11** and **[Node.js](https://nodejs.org) 20 or newer**. The first run downloads the image library it needs (about 10 seconds).
-
-### Claude Code
+**Claude Code**: run inside Claude Code:
 
 ```text
 /plugin marketplace add JayceeGupta/iconwright
 /plugin install iconwright@icon-playground
 ```
 
-Then just ask, for example: *"make my Discord taskbar icon purple"*.
-
-### Codex
+**Codex, Cursor, VS Code and other MCP clients**: clone, install, and register the stdio server:
 
 ```bash
 git clone https://github.com/JayceeGupta/iconwright
-codex mcp add iconwright -- node /path/to/iconwright/bin/iconwright-mcp.mjs
+cd iconwright && npm install
+# then point your client at:  node <path>/iconwright/bin/iconwright-mcp.mjs
 ```
 
-Codex asks before each tool call. To let it run the read-only tools without asking, see [Getting started](docs/getting-started.md#codex).
+**Or let your agent do it**: paste the [setup prompt](docs/agents.md#setup-prompt).
 
-### Any other MCP client
+Requires Node.js 20+. Taskbar and desktop features need Windows 10 or 11 and no administrator rights.
 
-Run `node /path/to/iconwright/bin/iconwright-mcp.mjs` as a stdio MCP server.
+## Try it
 
-### Command line
+> Design me a calm, minimal icon for a notes app and show me some options.
+>
+> Make all my taskbar icons white.
+>
+> Pin Notepad, unpin Edge, and put Notepad first.
+>
+> Undo all my icon changes.
+
+Or from a terminal:
 
 ```bash
-git clone https://github.com/JayceeGupta/iconwright
-cd iconwright
-node bin/iconwright.mjs help
-node bin/iconwright.mjs doctor
-node bin/iconwright.mjs apply "Spotify" --source simple-icons:spotify --color white
-node bin/iconwright.mjs apply "Spotify" "Discord" "Steam" --source app --color white
+node bin/iconwright.mjs design ph:rocket-launch-fill tabler:rocket --styles "color=white bg=#2d5ba6 shape=squircle|color=#e9c46a bg=#1f2228 shape=circle" --out grid.png
+node bin/iconwright.mjs make ph:rocket-launch-fill --style "color=white bg=#2d5ba6 shape=squircle" --formats ico,icns,web
+node bin/iconwright.mjs studio
 ```
-
-## Before you start
-
-- **Pinning, unpinning and reordering restart Windows Explorer.** The taskbar disappears for a second or two. Open File Explorer windows close. Your apps keep running.
-- **Taskbar styling tools** (TranslucentTB, etc.) can switch themselves off if Explorer restarts twice in quick succession. iconwright notices and restarts them, and `--cooldown` spaces restarts out.
-- **Everything can be undone.** Original icons are remembered, and the pinned-apps list is backed up before every change. See [Safety and risks](docs/safety.md).
 
 ## Docs
 
-- [Getting started](docs/getting-started.md): install, first changes, checking and undoing them
-- [Commands](docs/commands.md): every CLI command and MCP tool
-- [Safety and risks](docs/safety.md): what iconwright changes, backups, recovery and known risks
-- [Compatibility](docs/compatibility.md): what's been tested and where
-- [How it works](docs/how-it-works.md): the techniques behind each feature
-- [Windows internals](docs/windows-internals.md): low-level notes for contributors
+| | |
+| --- | --- |
+| [Getting started](docs/getting-started.md) | Install and a first icon in five minutes |
+| [Design icons](docs/design.md) | The design loop, style strings, export formats, tips |
+| [The studio](docs/studio.md) | The visual editor |
+| [Taskbar and apps](docs/taskbar.md) / [Desktop](docs/desktop.md) | What each Windows change does |
+| [For agents](docs/agents.md) | Setup prompt and how to drive the tools well |
+| [MCP tools](docs/tools.md) / [Command line](docs/cli.md) | Reference |
+| [Safety and risks](docs/safety.md) | What changes, how to undo it, what could go wrong |
+| [Compatibility](docs/compatibility.md) / [How it works](docs/how-it-works.md) | Testing status and internals |
 
-## Contributing
+## Safety in one paragraph
 
-Bug reports are very welcome, especially from setups the developer hasn't tested (Windows 10, the stock Windows 11 taskbar, several monitors, other languages). Please include the output of `node bin/iconwright.mjs doctor`.
-
-Run the tests with `npm test`.
+Designing and exporting changes nothing but the files you ask for. App and desktop icon changes edit shortcut settings and are fully undoable. Pinning edits an undocumented Windows setting and restarts Explorer (open File Explorer windows close); iconwright backs it up first and rolls back on failure. Read [Safety and risks](docs/safety.md) before your first pin change.
 
 ## License
 
-[MIT](LICENSE)
+MIT. Icons from Iconify keep their own licenses, which iconwright reports with every search. The bundled Inter font is under the SIL Open Font License.

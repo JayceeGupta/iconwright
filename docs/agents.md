@@ -87,7 +87,7 @@ Tell the user how to undo after any visible change.
 
 ## Prompts
 
-The server offers four prompts. Clients that support MCP prompts show them as commands (in Claude Code, `/mcp__iconwright__<name>`):
+The server offers four prompts. Clients that support MCP prompts show them as commands; in Claude Code they're in the `/` menu, marked (MCP):
 
 | Prompt | What it does |
 | --- | --- |

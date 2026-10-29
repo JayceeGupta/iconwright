@@ -1,50 +1,49 @@
 ---
 name: iconwright
-description: Use when the user wants to make, restyle or change icons, or customize the Windows taskbar or desktop. Examples - "change the Spotify taskbar icon", "make me a red Discord icon", "make all my taskbar icons white", "pin VS Code", "move Spotify to the front of the taskbar", "make my desktop icons smaller", "put my desktop icons on the right", "change the Recycle Bin icon", "undo my icon changes".
+description: Icon design and Windows taskbar/desktop customization with the iconwright MCP tools. Use when the user wants an icon designed, restyled or exported (.ico, .icns, favicon), app or desktop icons changed, taskbar apps pinned, unpinned or reordered, desktop icons arranged, or any of that undone.
 ---
 
 # iconwright
 
-Makes `.ico` icons (any OS) and changes Windows: app icons on the taskbar and Start Menu, pinned apps and their order, and desktop icons. Every change can be undone.
+iconwright's tools design icons on any OS and change the Windows taskbar and desktop. Work in **rounds**: each round is one small image the user looks at and answers. Changes to Windows are **batched**: one call covers every app.
 
-## Tools
+## Designing an icon
 
-Use the `iconwright` MCP tools. Without them, run the CLI: `node <plugin-root>/bin/iconwright.mjs <command>` (plugin root = two folders up from this file; `help` lists commands; each prints one line of JSON).
+Run the rounds in order; each ends when the user has picked.
 
-| Goal | Tool | CLI |
-|---|---|---|
-| Find an app's exact name | `list_apps` | `apps <text>` |
-| An app's shortcuts and pin state | `app_info` | `info <app>` |
-| What's pinned, with which icon | `taskbar_status` | `status` |
-| Find artwork | `search_icons` | `search <words>` |
-| Make an icon and look at it | `make_icon` | `make --source <ref> [style]` |
-| Compare several options | `make_sheet` | `sheet <files> --out f.png` |
-| Restyle one or many apps | `app_apply_icon` | `apply <app...> --source <ref\|app> [style]` |
-| Put an existing .ico on an app | `app_set_icon` | `apply <app> --icon f.ico` |
-| Pin, unpin, reorder | `taskbar_pin`, `taskbar_unpin`, `taskbar_reorder` | `pin`, `unpin`, `reorder <app...> --position n` |
-| Desktop | `desktop_info`, `desktop_arrange`, `desktop_move`, `desktop_icon_size`, `desktop_options`, `desktop_system_icons`, `desktop_apply_icon`, `desktop_layout_save`/`_load` | `desktop list\|arrange\|move\|size\|options\|system\|apply\|save\|load` |
-| Undo | `app_restore_icons`, `desktop_restore_icons`, `restore_all_icons`, `taskbar_restore_backup` | `restore <app>`, `desktop restore`, `restore --all`, `restore-pins` |
-| Check the result | `capture` | `capture taskbar\|desktop` |
-| Something fails | `doctor` | `doctor` |
+1. **Find artwork.** `search_icons` for two or three phrasings of the idea. The sheet is numbered: picture N is `icons[N-1]`. Use `palette: "mono"` when the icon will be recolored, `simple-icons:<brand>` for brand logos. Done when the user names candidates, or you shortlist 3 to 6.
+2. **Compare looks.** `design_icons` with the candidates as `sources` (rows A, B, …) and 3 or 4 style strings as `styles` (columns 1, 2, …). Done when the user picks a cell like "B2".
+3. **Refine.** Change one thing per round (color, background, shape, padding) with another small grid. Before choosing colors or shapes, read [design-guide.md](design-guide.md) for what reads well at 16 to 24 px and on light and dark taskbars.
+4. **Check in place.** `preview_icon` with the pick and the scenes that matter (Windows: `taskbar`, `start`, `sizes`; web: `browser`; Apple: `dock`, `ios`). Done when the user confirms, or after you've fixed what the scenes revealed (an icon vanishing on light or dark is the usual one).
+5. **Deliver.** `make_icon` with the formats the user needs, or `app_apply_icon` to put it on Windows apps. Report the file paths or what changed, and how to undo it.
 
-**Sources:** an Iconify id (`simple-icons:spotify`, `mdi:music`, `lucide:terminal`), a `.svg/.png/.jpg/.webp/.ico` file, raw `<svg>`, or (for apps) `app` = the app's own icon.
-**Style:** `color` recolors the artwork; `bg` + `shape` (`rounded`, `circle`, `square`) adds a background; `padding`, `radius`. Keep the background transparent unless the user asks for one.
+When the user wants to adjust by hand, `open_studio` with the current source and style; they paste back what the studio's "Copy for your agent" button gives them.
 
-## Workflow
+**Style strings** carry every look: `color=white bg=#2d5ba6 shape=squircle shadow`. Keys: `color`, `bg` (CSS color or `linear-gradient(135deg,#a,#b)`), `shape` (`none` `square` `rounded` `squircle` `circle`), `radius` (0 to 0.5), `padding` (0 to 0.45), `shadow`. Quote them back to the user so they can reuse them.
 
-1. Resolve names with `list_apps` (or `taskbar_status` for pinned apps). If several apps match, pick the obvious one or ask.
-2. Pick a source. Brand logos: try `simple-icons:<brand>` first, otherwise `search_icons`. To restyle what's already there (e.g. "make my icons white"), use source `app`.
-3. Not sure about the look? `make_icon` first and show the preview. For several options, make each and compare with `make_sheet`.
-4. Apply. Many apps at once: one `app_apply_icon` call with all of them.
-5. Check with `capture` when the result should be visible. Report what changed in a line or two, and say how to undo it.
+**Sources**: Iconify ids, image files, raw `<svg>`, or `app:<App name>` for an installed Windows app's current icon.
 
-## Rules
+## Changing Windows
 
-- **Pin, unpin, reorder, refresh and restore-backup restart Windows Explorer.** The taskbar blinks and open File Explorer windows close. Put all apps in one call. Never call these in a loop. Tell the user before doing several.
-- If a result has a `hint` about refresh, finish all other changes, then call `taskbar_refresh` once.
-- If the result's `explorer.hint` says the taskbar look changed, a styling tool (TranslucentTB) may have switched off. Tell the user. For long batches pass `restartCooldown` (seconds).
-- `skipped` shortcuts are shared by all users and need admin. Mention it; don't retry.
-- Before rearranging a desktop, `desktop_layout_save` a backup. Plain files (like a .txt) can't get their own icon; use a shortcut.
-- App updates can recreate shortcuts and undo a custom icon; apply again.
-- Store apps: the pinned icon changes; the running window may keep the app's own icon.
-- Icons live in `%LOCALAPPDATA%\iconwright\icons`. Shortcuts point there; don't delete them.
+- **Restyle many apps in one `app_apply_icon` call.** "Make my taskbar icons white": `taskbar_status` for the names, then one call with every name, `source: "app"`, `style: "color=white"`. Preview two or three of them first with `design_icons` (`app:<name>` sources) when the look is new to the user.
+- **One `taskbar_pins` call per request.** It takes `pin`, `unpin` and `order` together and restarts Explorer once (the taskbar blinks; File Explorer windows close). Run it with `dryRun: true` first when the resulting order matters, and say a restart is coming.
+- **Refresh once, at the end.** When a result carries a refresh `hint`, finish all other changes, then call `taskbar_refresh` once.
+- **Exact names** come from `taskbar_status` or `find_apps`.
+- **Desktop**: `desktop_layout` with `action: "save"` before `desktop_arrange`; `desktop_settings` takes several settings in one call.
+- **Show the result** with `capture` after visible changes.
+
+## Undo
+
+| Undo | Call |
+| --- | --- |
+| Icons on some apps or desktop items | `restore_icons` with `apps` or `desktopItems` |
+| Every icon iconwright changed | `restore_icons` with `all: true` |
+| The latest pin change | `taskbar_restore_backup` |
+| Every pin change | `taskbar_restore_backup` with `from: "original"` |
+| A desktop arrangement | `desktop_layout` with `action: "load"` |
+
+After any change, tell the user the matching undo in one sentence.
+
+## When something fails
+
+Call `doctor` and relay its finding in plain words. Errors from pin changes say whether the change was rolled back; when they say it wasn't, offer `taskbar_restore_backup`. The full risk list is at https://iconwright.guptajayam.com/docs/safety.md.

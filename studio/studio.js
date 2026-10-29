@@ -68,7 +68,14 @@ const toHex = (c) => {
   return /^#[0-9a-f]{6}$/i.test(probe.fillStyle) ? probe.fillStyle : null;
 };
 
-// Reads a typed style string into the controls (unknown bits are left to the server to reject).
+const STYLE_KEYS = ['color', 'bg', 'shape', 'radius', 'padding', 'shadow'];
+// Problems in a typed style string, in words (empty when it's fine).
+function styleProblem(text) {
+  const bad = tokens(text).map((t) => t.split('=')[0]).filter((k) => !STYLE_KEYS.includes(k));
+  return bad.length ? `Unknown style key: ${bad.join(', ')}. Use ${STYLE_KEYS.join(', ')}.` : '';
+}
+
+// Reads a style string into the controls.
 function applyStyleString(text) {
   Object.assign(state, { recolor: false, bgMode: 'none', shape: 'rounded', radius: 0.22, padding: null, shadow: false });
   for (const t of tokens(text)) {
@@ -139,14 +146,16 @@ async function render() {
 }
 
 // ---------- sources ----------
-let searchStart = 0, lastQuery = '';
+let searchStart = 0, lastQuery = '', searchSeq = 0;
 async function search(query, more = false) {
   if (!query) return;
-  if (!more) { searchStart = 0; $('results').replaceChildren(); }
-  lastQuery = query; $('searchNote').textContent = 'Searching…';
+  const seq = ++searchSeq, start = more ? searchStart : 0;   // a newer search makes older answers stale
+  if (!more) $('results').replaceChildren();
+  lastQuery = query; $('searchNote').textContent = 'Searching…'; $('more').disabled = true;
   try {
-    const r = await api('search', { q: query, limit: 48, start: searchStart });
-    searchStart += r.icons.length;
+    const r = await api('search', { q: query, limit: 48, start });
+    if (seq !== searchSeq) return;
+    searchStart = start + r.icons.length;
     for (const id of r.icons) {
       const b = document.createElement('button');
       b.type = 'button'; b.title = id; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(id === state.source));
@@ -158,7 +167,8 @@ async function search(query, more = false) {
     const licenses = [...new Set(Object.values(r.collections).map((c) => c.license).filter(Boolean))];
     $('searchNote').textContent = r.icons.length || more ? `${r.total} found${licenses.length ? `. Licenses: ${licenses.join(', ')}` : ''}.` : 'Nothing found. Try a simpler word.';
     $('more').hidden = searchStart >= r.total;
-  } catch (e) { $('searchNote').textContent = e.message; }
+  } catch (e) { if (seq === searchSeq) $('searchNote').textContent = e.message; }
+  finally { if (seq === searchSeq) $('more').disabled = false; }
 }
 
 function pickSource(source, button, label) {
@@ -325,7 +335,11 @@ async function init() {
   $('radius').oninput = () => { state.radius = Number($('radius').value); changed(); };
   $('padding').oninput = () => { state.padding = Number($('padding').value); changed(); };
   $('shadow').onchange = () => { state.shadow = $('shadow').checked; changed(); };
-  $('styleText').onchange = () => { applyStyleString($('styleText').value); changed({ now: true }); };
+  $('styleText').onchange = () => {
+    const problem = styleProblem($('styleText').value);
+    if (problem) { $('styleText').classList.add('bad'); return status(problem, true); }
+    applyStyleString($('styleText').value); changed({ now: true });
+  };
   $('label').onchange = () => { state.label = $('label').value || 'My App'; changed(); };
   $('scale').onchange = () => { state.scale = Number($('scale').value); changed(); };
   for (const b of document.querySelectorAll('.canvas-tools button')) b.onclick = () => {

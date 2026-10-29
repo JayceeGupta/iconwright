@@ -19,7 +19,7 @@ Run these two commands inside Claude Code:
 /plugin install iconwright@icon-playground
 ```
 
-Restart Claude Code if it asks. You get the MCP tools, a skill that teaches Claude to use them well, and four slash commands: `/mcp__iconwright__design-icon`, `/mcp__iconwright__restyle-taskbar`, `/mcp__iconwright__tidy-desktop` and `/mcp__iconwright__undo-everything`.
+Restart Claude Code if it asks. You get the MCP tools, a skill that teaches Claude to use them well, and four commands in the `/` menu: design-icon, restyle-taskbar, tidy-desktop and undo-everything.
 
 ### Codex
 

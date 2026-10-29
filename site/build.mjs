@@ -78,7 +78,7 @@ Every tool rejects arguments it doesn't know, so a typo is an error instead of b
       } else md += 'No arguments.\n\n';
     }
   }
-  md += `## Prompts\n\nClients that support MCP prompts show these as commands (in Claude Code: \`/mcp__iconwright__<name>\`).\n\n`;
+  md += `## Prompts\n\nClients that support MCP prompts show these as commands; in Claude Code they're in the \`/\` menu, marked (MCP).\n\n`;
   for (const p of PROMPTS) md += `- **${p.name}**: ${p.description}\n`;
   return md;
 }

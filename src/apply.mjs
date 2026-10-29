@@ -70,7 +70,7 @@ export async function applyIcons(o, win) {
   const plan = (list) => JSON.stringify(list.map((r) => ({ app: r.app, icon: r.ico })));
   const set = await stage('Setting the icons', done, () => win('set-icons', { value: plan(ready) }));
   // Results come back in plan order, with each app's resolved name.
-  if (set.results?.length !== ready.length) throw new Error(`Setting the icons returned ${set.results?.length} results for ${ready.length} apps; check app_info.`);
+  if (set.results?.length !== ready.length) throw new Error(`Setting the icons returned ${set.results?.length} results for ${ready.length} apps; check find_apps.`);
   set.results.forEach((s, i) => {
     const r = ready[i];
     if (s.error) { r.error = s.error; delete r.ico; return; }
