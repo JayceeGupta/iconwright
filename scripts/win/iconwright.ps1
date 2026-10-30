@@ -806,7 +806,7 @@ switch -Wildcard ($Command.ToLower()) {
     }) })
   }
   default {
-    Out-Json 'Commands: apps | info | set-icon | set-icons | app-icon-image | pin | unpin | reorder | pins | restore | restore-all | restore-pins | refresh | status | doctor | capture | desktop-<list|move|arrange|size|options|system|set-icon|restore|save|load>. Use the Node CLI (iconwright help) for documented usage.'
+    Out-Json 'Commands: apps | info | set-icon | set-icons | app-icon-image | pin | unpin | reorder | pins | restore | restore-all | restore-pins | refresh | status | doctor | capture | desktop-<list|move|arrange|size|options|system|set-icon|icon-image|restore|save|load>. Use the Node CLI (iconwright help) for documented usage.'
   }
 }
 }

@@ -9,6 +9,7 @@ import { searchSheet, designGrid, MAX_CELLS } from './design.mjs';
 import { renderScenes, SCENES, DEFAULT_SCENES } from './scenes.mjs';
 import { applyIcons, applyDesktopIcon } from './apply.mjs';
 import { atomicWrite } from './fsutil.mjs';
+import { resolveOwnIcons } from './own-icons.mjs';
 
 // ---------- annotations (only values that differ from MCP's defaults:
 // readOnly false, destructive true, idempotent false, openWorld true) ----------
@@ -18,7 +19,7 @@ const CHANGE = { idempotentHint: true, openWorldHint: false };
 const RESTART = { openWorldHint: false };
 
 // ---------- shared argument shapes ----------
-const source = z.string().min(1).describe('Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" (an installed app\'s icon; Windows)');
+const source = z.string().min(1).describe('Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" / "desktop:<item>" (its own icon; Windows)');
 const style = { style: z.string().optional().describe(STYLE_HELP) };
 const outDir = z.string().optional().describe('Output folder (default: iconwright\'s icons folder)');
 const apps = z.array(z.string().min(1)).min(1).describe('App names (as find_apps shows them) or AppIDs');
@@ -33,20 +34,8 @@ const appNames = (list) => [...new Set(list.map((s) => s.replace(/^app:/i, '').t
 const json = (value) => ({ json: value });
 const withImage = (value, png) => ({ json: value, image: png });
 
-// "app:<name>" sources become the app's icon image (Windows); others pass through.
-async function resolveSources(list, ctx) {
-  const wanted = list.filter((s) => /^app:/i.test(s));
-  if (!wanted.length) return list;
-  if (!ctx.isWindows) throw new Error('"app:" sources read installed apps\' icons and only work on Windows');
-  const images = await ctx.win('app-icon-image', { app: appNames(wanted) });
-  const byIndex = new Map(wanted.map((s, i) => [s, images[i]]));
-  return list.map((s) => {
-    const img = byIndex.get(s);
-    if (!img) return s;
-    if (img.error) throw new Error(`${s}: ${img.error}`);
-    return img.image;
-  });
-}
+// "app:<name>" and "desktop:<item>" sources become that icon's image (Windows); others pass through.
+const resolveSources = (list, ctx) => resolveOwnIcons(list, ctx.isWindows ? ctx.win : null);
 
 // The user's pinned taskbar apps as scene neighbors (Windows); null when unavailable.
 // Extracting ten app icons takes a few seconds, so the list is reused for two minutes.
@@ -97,7 +86,7 @@ export const TOOLS = [
     name: 'design_icons', group: 'Design', title: 'Compare designs',
     description: `Compare options in one small image: rows A, B, … = sources, columns 1, 2, … = styles; each cell shows the icon large and at 24 px on dark and light. Pass a picked cell's (e.g. "B2") source and style to preview_icon, make_icon or app_apply_icon. Max ${MAX_CELLS} cells. Nothing is saved.`,
     input: {
-      sources: z.array(source).min(1).max(12).describe('Rows: icon ids, files, raw <svg> or "app:<name>"'),
+      sources: z.array(source).min(1).max(12).describe('Rows: icon ids, files, raw <svg>, "app:<name>" or "desktop:<item>"'),
       styles: z.array(z.string()).min(1).max(8).optional().describe('Columns: style strings (see make_icon), e.g. ["color=white", "color=white bg=#1DB954 shape=squircle"]'),
     },
     annotations: { ...READ, openWorldHint: true },
@@ -127,7 +116,7 @@ export const TOOLS = [
       const master = await renderMaster({ source: resolved, ...look });
       const wantsNeighbors = !scenes || scenes.some((n) => n === 'taskbar' || n === 'start');
       const neighbors = ctx.isWindows && wantsNeighbors ? await myNeighbors(ctx) : null;
-      const name = label || (/^app:/i.test(src) ? src.slice(4) : 'My App');
+      const name = label || (/^(app|desktop):/i.test(src) ? src.replace(/^(app|desktop):/i, '') : 'My App');
       const png = await renderScenes({ master, label: name, scenes, scale, neighbors });
       return withImage({ scenes: scenes ?? DEFAULT_SCENES, neighbors: neighbors ? 'your pinned apps' : 'samples' }, png);
     },
@@ -186,7 +175,7 @@ export const TOOLS = [
   },
   {
     name: 'app_apply_icon', group: 'Apps and taskbar', windows: true, title: 'Set app icons',
-    description: 'Put an icon on apps (Start menu + pinned shortcuts; open windows update live). Give source (source "app" restyles each app\'s own icon, e.g. all white) or icon (existing .ico). pin:true also pins. If the result has a hint, taskbar_refresh once after all changes. Undo: restore_icons.',
+    description: 'Put an icon on apps (Start menu + pinned shortcuts; open windows update live). Give source (source "app" restyles each app\'s own icon, e.g. all white; "cutout color=white" drops their tiles too) or icon (existing .ico). pin:true also pins. If the result has a hint, taskbar_refresh once after all changes. Undo: restore_icons.',
     input: {
       apps,
       source: z.string().min(1).optional().describe('"app" (each app\'s own icon), Iconify id, image file or raw <svg>'),
@@ -311,16 +300,17 @@ export const TOOLS = [
   },
   {
     name: 'desktop_apply_icon', group: 'Desktop', windows: true, title: 'Set desktop icon',
-    description: 'Change the icon of a desktop shortcut, web link, folder or system icon (this-pc, recycle-bin, …). Give source (makes an icon) or icon (existing .ico). Plain files can\'t have their own icon. Undo: restore_icons.',
+    description: 'Change the icon of a desktop shortcut, web link, folder or system icon (this-pc, recycle-bin, …). Give source (makes an icon; "item" restyles its own icon) or icon (existing .ico). Plain files can\'t have their own icon. Undo: restore_icons.',
     input: {
       item: z.string().min(1).describe('Name or path from desktop_info, or a system icon name'),
-      source: source.optional(), icon: z.string().optional().describe('Existing .ico/.exe/.dll'),
+      source: z.string().min(1).optional().describe('"item" (its own icon) or any source'),
+      icon: z.string().optional().describe('Existing .ico/.exe/.dll'),
       iconIndex: z.number().int().optional(), ...style, name: z.string().optional(), outDir,
     },
     annotations: CHANGE,
     async handler({ style: st, ...args }, ctx) {
       Object.assign(args, parseStyle(st));
-      if (args.source) [args.source] = await resolveSources([args.source], ctx);
+      if (args.source && args.source !== 'item') [args.source] = await resolveSources([args.source], ctx);
       const r = await applyDesktopIcon(args, ctx.win);
       const { preview, ...rest } = r;
       return preview ? withImage(rest, await readFile(preview)) : json(rest);

@@ -7,13 +7,14 @@ import { parseArgs } from './args.mjs';
 import { writeFile } from 'node:fs/promises';
 import { toJson } from './output.mjs';
 import { createRequire } from 'node:module';
+import { resolveOwnIcons, isOwnIcon } from './own-icons.mjs';
 
 const { version } = createRequire(import.meta.url)('../package.json');
 
 export const commands = new Map();
 export function register(name, handler, usage = '') { commands.set(name, { handler, usage }); }
-const STYLE_FLAGS = { color: 'string', bg: 'string', shape: 'string', radius: 'number', padding: 'number', shadow: 'boolean' };
-function style(v) { return { ...parseStyle(v.style), ...Object.fromEntries(Object.entries({ color: v.color, bg: v.bg, shape: v.shape, radius: v.radius, padding: v.padding, shadow: v.shadow }).filter(([, x]) => x !== undefined)) }; }
+const STYLE_FLAGS = { cutout: 'boolean', color: 'string', bg: 'string', shape: 'string', radius: 'number', padding: 'number', shadow: 'boolean' };
+function style(v) { return { ...parseStyle(v.style), ...Object.fromEntries(Object.entries({ cutout: v.cutout, color: v.color, bg: v.bg, shape: v.shape, radius: v.radius, padding: v.padding, shadow: v.shadow }).filter(([, x]) => x !== undefined)) }; }
 const csv = (v) => v?.split(',').map((x) => x.trim()).filter(Boolean);
 
 register('search', async (args) => {
@@ -29,7 +30,7 @@ register('search', async (args) => {
 
 register('make', async (args) => {
   const { values: v, positional, help } = parseArgs(args, { positional: 'any', flags: { style: 'string', ...STYLE_FLAGS, formats: 'string', name: 'string', out: 'string', 'png-size': 'number' } });
-  const usage = 'Usage: iconwright make <source> [--style "..."] [--color ..] [--bg ..] [--shape ..] [--radius ..] [--padding ..] [--shadow] [--formats ico,png,icns,web,pngset] [--name n] [--out dir] [--png-size N]';
+  const usage = 'Usage: iconwright make <source> [--style "..."] [--color ..] [--bg ..] [--shape ..] [--radius ..] [--padding ..] [--shadow] [--cutout] [--formats ico,png,icns,web,pngset] [--name n] [--out dir] [--png-size N]';
   if (help) return usage;
   if (!positional.length) throw new Error(usage);
   const [source] = await resolveAppSources(positional.slice(0, 1));
@@ -48,19 +49,11 @@ register('design', async (args) => {
   return [...result.rows.map((r) => `${r.row}: ${r.source}`), ...result.columns.map((c) => `${c.column}: ${Object.keys(c).filter((k) => k !== 'column').map((k) => `${k}=${c[k]}`).join(' ') || 'default'}`), v.out].join('\n');
 }, 'design <source...> [options]');
 
+// app:<name> and desktop:<item> sources become that icon's image (Windows).
 async function resolveAppSources(sources) {
-  const apps = sources.filter((s) => /^app:/i.test(s));
-  if (!apps.length) return sources;
-  if (process.platform !== 'win32') throw new Error('app:<name> sources are available on Windows only');
-  const { win } = await import('./win.mjs');
-  const result = await win('app-icon-image', { app: apps.map((s) => s.slice(4)) });
-  let i = 0;
-  return sources.map((s) => {
-    if (!/^app:/i.test(s)) return s;
-    const image = result[i++];
-    if (!image || image.error) throw new Error(`${s}: ${image?.error ?? 'icon image unavailable'}`);
-    return image.image;
-  });
+  if (!sources.some(isOwnIcon)) return sources;
+  const win = process.platform === 'win32' ? (await import('./win.mjs')).win : null;
+  return resolveOwnIcons(sources, win);
 }
 
 register('preview', async (args) => {

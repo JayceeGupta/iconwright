@@ -74,8 +74,11 @@ color=white bg=#2d5ba6 shape=squircle shadow
 | `radius` | 0 to 0.5, a fraction of the icon size (for `rounded`) | 0.22 |
 | `padding` | 0 to 0.45, the space around the artwork | 0.08, or 0.2 with a background |
 | `shadow` | On when present | Off |
+| `cutout` | On when present. Removes the artwork's own solid background (an app's tile, a badge) and keeps the foreground, which then fills the icon. | Off |
 
 Recoloring replaces every color in the artwork with one color, which suits single-color icons. For multicolor logos, leave `color` out and add a background instead.
+
+`cutout` finds the background by looking inward from all four edges: if most of what it meets is one color, that color goes, along with the tile's border. Parts of the artwork in that same color go too, such as the holes in an "O". Artwork without a solid background (a bare glyph, a logo on transparency) is kept as it is, and the result says so. Combine it with the other keys: `cutout color=white` turns an app's tile into a bare white glyph, and `cutout bg=#2563eb shape=squircle` puts the glyph on a new tile.
 
 ## Tips for icons that read well
 

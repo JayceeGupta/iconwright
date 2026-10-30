@@ -8,6 +8,8 @@ iconwright can change desktop icons, line them up, resize them, and save and res
 
 Works for shortcuts (`.lnk`), web links (`.url`), folders, and the system icons: This PC, Recycle Bin, your user folder, Network and Control Panel (`desktop_apply_icon`).
 
+To restyle an item's own icon instead of replacing it, give `source: "item"`, for example with style `cutout color=white` for a bare white glyph. iconwright starts from the icon the item had before iconwright first changed it, so restyling twice never stacks. `desktop:<item>` works as a source in the design tools too.
+
 Plain files, like a `.txt` or `.pdf`, can't have their own icon: Windows picks those by file type. Make a shortcut to the file and change the shortcut's icon instead.
 
 ## Arrange icons

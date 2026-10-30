@@ -8,9 +8,9 @@ npx -y iconwright <command> [options]
 
 `npx iconwright help` lists the commands, and `<command> --help` shows one command's options. Unknown options are errors, so a typo never runs silently.
 
-**Sources** are an Iconify id (`mdi:music`), an image file (`.svg`, `.png`, `.jpg`, `.webp`, `.ico`), raw `<svg>` text, or (on Windows) `app:<App name>` for an installed app's current icon.
+**Sources** are an Iconify id (`mdi:music`), an image file (`.svg`, `.png`, `.jpg`, `.webp`, `.ico`), raw `<svg>` text, or (on Windows) `app:<App name>` for an installed app's own icon and `desktop:<item>` for a desktop item's own icon.
 
-**Styles** are given as one string, `--style "color=white bg=#2d5ba6 shape=squircle shadow"`, or as separate flags: `--color`, `--bg`, `--shape`, `--radius`, `--padding`, `--shadow`. Separate flags win over the same key in `--style`. See [style strings](design.md#styles).
+**Styles** are given as one string, `--style "color=white bg=#2d5ba6 shape=squircle shadow"`, or as separate flags: `--color`, `--bg`, `--shape`, `--radius`, `--padding`, `--shadow`, `--cutout`. Separate flags win over the same key in `--style`. See [style strings](design.md#styles).
 
 ## Design (any OS)
 
@@ -63,7 +63,7 @@ npx iconwright restore --all
 | `desktop size <size>` | `small`, `medium`, `large`, `xl`, `huge`, or pixels from 16 to 256. |
 | `desktop options` | `--auto-arrange on\|off`, `--snap on\|off`, `--icons on\|off`. |
 | `desktop system <names...> --show\|--hide` | `this-pc`, `recycle-bin`, `user-files`, `network`, `control-panel`. |
-| `desktop apply <item>` | Changes a desktop item's icon: `--source <ref>` plus style options, or `--icon file.ico`. |
+| `desktop apply <item>` | Changes a desktop item's icon: `--source <ref>` plus style options (`--source item` restyles its own icon), or `--icon file.ico`. |
 | `desktop restore <item...>` | Puts original icons back. |
 | `desktop save <file.json>` / `desktop load <file.json>` | Saves or restores icon positions, size and auto-arrange. |
 

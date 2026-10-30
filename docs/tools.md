@@ -6,7 +6,7 @@ iconwright's MCP server has 20 tools. The design tools work on any OS; the rest 
 
 Every tool rejects arguments it doesn't know, so a typo is an error instead of being silently ignored. Read-only tools are marked so clients can run them without asking.
 
-**Style strings.** Tools that style an icon take one `style` argument: space-separated `key=value` pairs. Keys: `color` (recolors the artwork), `bg` (a CSS color or `linear-gradient(135deg,#a,#b)`), `shape` (`none`, `square`, `rounded`, `squircle`, `circle`), `radius` (0–0.5), `padding` (0–0.45) and `shadow`. Example: `color=white bg=#2d5ba6 shape=squircle shadow`.
+**Style strings.** Tools that style an icon take one `style` argument: space-separated `key=value` pairs. Keys: `color` (recolors the artwork), `bg` (a CSS color or `linear-gradient(135deg,#a,#b)`), `shape` (`none`, `square`, `rounded`, `squircle`, `circle`), `radius` (0–0.5), `padding` (0–0.45), `shadow` and `cutout` (removes the artwork's own background tile, keeping the foreground). Example: `color=white bg=#2d5ba6 shape=squircle shadow`.
 
 ## Design
 
@@ -33,7 +33,7 @@ Read-only.
 
 | Argument | Type | Description |
 | --- | --- | --- |
-| `sources` (required) | string[] | Rows: icon ids, files, raw <svg> or "app:<name>" |
+| `sources` (required) | string[] | Rows: icon ids, files, raw <svg>, "app:<name>" or "desktop:<item>" |
 | `styles` | string[] | Columns: style strings (see make_icon), e.g. ["color=white", "color=white bg=#1DB954 shape=squircle"] |
 
 ### `preview_icon`
@@ -44,8 +44,8 @@ Read-only.
 
 | Argument | Type | Description |
 | --- | --- | --- |
-| `source` (required) | string | Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" (an installed app's icon; Windows) |
-| `style` | string | Look, "key=value ...": color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
+| `source` (required) | string | Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" / "desktop:<item>" (its own icon; Windows) |
+| `style` | string | Look, "key=value ...": cutout (drops the art's own background tile), color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
 | `label` | string | App name shown under the icon |
 | `scenes` | "taskbar" \| "start" \| "desktop" \| "explorer" \| "browser" \| "dock" \| "ios" \| "android" \| "sizes"[] | Default taskbar, start, desktop, sizes |
 | `scale` | 1 \| 1.5 \| 2 | Display scaling to mimic (default 1) |
@@ -58,8 +58,8 @@ Writes files only.
 
 | Argument | Type | Description |
 | --- | --- | --- |
-| `source` (required) | string | Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" (an installed app's icon; Windows) |
-| `style` | string | Look, "key=value ...": color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
+| `source` (required) | string | Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" / "desktop:<item>" (its own icon; Windows) |
+| `style` | string | Look, "key=value ...": cutout (drops the art's own background tile), color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
 | `name` | string | File name (default "icon") |
 | `outDir` | string | Output folder (default: iconwright's icons folder) |
 | `formats` | "ico" \| "png" \| "icns" \| "web" \| "pngset"[] | Default ["ico","png"] |
@@ -74,8 +74,8 @@ Read-only.
 
 | Argument | Type | Description |
 | --- | --- | --- |
-| `source` | string | Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" (an installed app's icon; Windows) |
-| `style` | string | Look, "key=value ...": color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
+| `source` | string | Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" / "desktop:<item>" (its own icon; Windows) |
+| `style` | string | Look, "key=value ...": cutout (drops the art's own background tile), color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
 | `label` | string | App name shown in the scenes |
 | `open` | boolean | Open the browser (default true); false just returns the link |
 
@@ -94,7 +94,7 @@ Read-only. Windows only.
 
 ### `app_apply_icon`
 
-Put an icon on apps (Start menu + pinned shortcuts; open windows update live). Give source (source "app" restyles each app's own icon, e.g. all white) or icon (existing .ico). pin:true also pins. If the result has a hint, taskbar_refresh once after all changes. Undo: restore_icons.
+Put an icon on apps (Start menu + pinned shortcuts; open windows update live). Give source (source "app" restyles each app's own icon, e.g. all white; "cutout color=white" drops their tiles too) or icon (existing .ico). pin:true also pins. If the result has a hint, taskbar_refresh once after all changes. Undo: restore_icons.
 
 Changes the PC. Windows only.
 
@@ -104,7 +104,7 @@ Changes the PC. Windows only.
 | `source` | string | "app" (each app's own icon), Iconify id, image file or raw <svg> |
 | `icon` | string | Existing .ico/.exe/.dll to use as is |
 | `iconIndex` | integer | Icon index inside icon (default 0) |
-| `style` | string | Look, "key=value ...": color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
+| `style` | string | Look, "key=value ...": cutout (drops the art's own background tile), color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
 | `name` | string | File name (single app) |
 | `outDir` | string | Output folder (default: iconwright's icons folder) |
 | `pin` | boolean | Also pin the apps |
@@ -208,17 +208,17 @@ Changes the PC. Windows only.
 
 ### `desktop_apply_icon`
 
-Change the icon of a desktop shortcut, web link, folder or system icon (this-pc, recycle-bin, …). Give source (makes an icon) or icon (existing .ico). Plain files can't have their own icon. Undo: restore_icons.
+Change the icon of a desktop shortcut, web link, folder or system icon (this-pc, recycle-bin, …). Give source (makes an icon; "item" restyles its own icon) or icon (existing .ico). Plain files can't have their own icon. Undo: restore_icons.
 
 Changes the PC. Windows only.
 
 | Argument | Type | Description |
 | --- | --- | --- |
 | `item` (required) | string | Name or path from desktop_info, or a system icon name |
-| `source` | string | Iconify id ("mdi:music"), image file, raw <svg>, or "app:<name>" (an installed app's icon; Windows) |
+| `source` | string | "item" (its own icon) or any source |
 | `icon` | string | Existing .ico/.exe/.dll |
 | `iconIndex` | integer |  |
-| `style` | string | Look, "key=value ...": color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
+| `style` | string | Look, "key=value ...": cutout (drops the art's own background tile), color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none\|square\|rounded\|squircle\|circle, radius=0-0.5, padding=0-0.45, shadow |
 | `name` | string |  |
 | `outDir` | string | Output folder (default: iconwright's icons folder) |
 

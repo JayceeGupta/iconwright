@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **`cutout` style key: restyle an icon's foreground on its own.** It removes the artwork's own solid background, such as the tile an app icon sits on, and crops to what's left, so the glyph fills the icon. `cutout color=white` turns app tiles into bare white glyphs; `cutout bg=#2563eb shape=squircle` puts them on a new tile. Artwork without a solid background is kept as it is, and results say which (`cutout` field). Works in every tool, the command line (`--cutout`) and the studio (a new switch).
+- **Restyle desktop items' own icons.** `desktop_apply_icon` takes `source: "item"`, and `desktop:<item>` works as a source wherever `app:<name>` does. Like apps, it starts from the icon the item had before iconwright changed it.
 - **Fix:** `iconwright make app:<name>` failed with "unsupported source"; `make` now reads the app's icon like `design` and `preview` do.
 - **Fix:** in the local studio, app names that look like Iconify ids (`app:Zen`) were looked up on Iconify and failed with "no icon".
 - **Fix:** desktop commands that look up an item (set an icon, restore, move) failed with a PowerShell property error when the desktop is empty, instead of saying the item wasn't found.

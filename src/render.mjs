@@ -10,6 +10,7 @@ import pngToIco from 'png-to-ico';
 import { loadSource } from './source.mjs';
 import { parseColor } from './shared/color.mjs';
 import { composeIconSvg, svgViewBox, alphaBox, nestSvg, GRID } from './shared/icon.mjs';
+import { cutoutPixels } from './shared/cutout.mjs';
 import { SHAPES, STYLE_KEYS, STYLE_HELP, pickStyle, parseStyle, formatStyle, normalizeStyle } from './shared/style.mjs';
 import { atomicWrite, ensureDir } from './fsutil.mjs';
 
@@ -59,21 +60,38 @@ export async function measureSvg(svg) {
   return { svg, box: alphaBox(data, info.width, info.height, view, 4) };
 }
 
-/** Raster artwork: a PNG data URL (at most 1024 px) plus the box of its visible pixels. */
-export async function measureRaster(raster) {
-  const png = await sharp(raster, { limitInputPixels: 50_000_000 }).rotate().ensureAlpha()
+/**
+ * Raster artwork: a PNG data URL (at most 1024 px) plus the box of its visible pixels.
+ * cutout: remove the image's own solid background first; `plate` is the color removed, or null.
+ */
+export async function measureRaster(raster, { cutout = false } = {}) {
+  let png = await sharp(raster, { limitInputPixels: 50_000_000 }).rotate().ensureAlpha()
     .resize(MASTER, MASTER, { fit: 'inside', withoutEnlargement: true, kernel: KERNEL }).png().toBuffer();
   const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+  let plate;
+  if (cutout) {
+    plate = cutoutPixels(data, info.width, info.height);
+    if (plate) png = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
+  }
   return { href: `data:image/png;base64,${png.toString('base64')}`, width: info.width, height: info.height,
-    box: alphaBox(data, info.width, info.height, [0, 0, info.width, info.height], 4) };
+    box: alphaBox(data, info.width, info.height, [0, 0, info.width, info.height], 4), ...(cutout ? { plate } : {}) };
 }
 
-/** The measured artwork for a source reference (cached). */
-export async function artFor(ref) {
-  const key = await sourceKey(ref);
+// Vector artwork drawn at the master size, for cutouts (which work on pixels).
+async function rasterizeSvg(svg) {
+  const view = svgViewBox(svg);
+  const k = MASTER / Math.max(view[2], view[3]);
+  const w = Math.max(1, Math.round(view[2] * k)), h = Math.max(1, Math.round(view[3] * k));
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" color="#000">${nestSvg(svg, view, 0, 0, w, h)}</svg>`);
+}
+
+/** The measured artwork for a source reference (cached). cutout: see measureRaster. */
+export async function artFor(ref, { cutout = false } = {}) {
+  const key = (await sourceKey(ref)) + (cutout ? '|cutout' : '');
   if (artCache.has(key)) { const hit = artCache.get(key); artCache.delete(key); artCache.set(key, hit); return hit; }
   const src = await loadSource(ref);
-  const art = src.svg !== undefined ? await measureSvg(src.svg) : await measureRaster(src.raster);
+  const art = cutout ? await measureRaster(src.svg !== undefined ? await rasterizeSvg(src.svg) : src.raster, { cutout })
+    : src.svg !== undefined ? await measureSvg(src.svg) : await measureRaster(src.raster);
   artCache.set(key, art);
   if (artCache.size > ART_CACHE_MAX) artCache.delete(artCache.keys().next().value);
   return art;
@@ -82,15 +100,21 @@ export async function artFor(ref) {
 /** The styled icon as an SVG document (what the studio shows). */
 export async function iconSvg(o) {
   if (!o?.source) throw new Error('source is required');
-  return composeIconSvg(await artFor(o.source), o);
+  return composeIconSvg(await artFor(o.source, { cutout: o.cutout }), o);
 }
 
 /** Render the styled 1024 px master PNG in memory. o: source + style options. */
 export async function renderMaster(o) {
   if (!o?.source) throw new Error('source is required');
   normalizeStyle(o);   // range errors before any work
-  const svg = composeIconSvg(await artFor(o.source), o);
+  const svg = composeIconSvg(await artFor(o.source, { cutout: o.cutout }), o);
   return sharp(Buffer.from(svg)).resize(MASTER, MASTER).png().toBuffer();
+}
+
+/** What a cutout did, in words an agent can relay (the artwork is cached, so this is cheap). */
+export async function cutoutNote(source) {
+  const { plate } = await artFor(source, { cutout: true });
+  return plate ? `removed the ${plate} background` : 'no solid background found; the artwork was kept as it is';
 }
 
 /** A plate color that contrasts with the icon: dark behind light artwork, white otherwise. */
@@ -117,7 +141,7 @@ export async function previewPng(master) {
 /**
  * Make icon files. o: source, style options, name, outDir, pngSize,
  * formats (any of ico, png, icns, web, pngset; default ico + png), preview (default true).
- * Returns { ico?, png?, icns?, web?, pngset?, preview? } with file paths.
+ * Returns { ico?, png?, icns?, web?, pngset?, preview? } with file paths, plus cutout (what it removed) when asked.
  */
 export async function makeIcon(o) {
   if (!o?.source) throw new Error('source is required');
@@ -129,6 +153,7 @@ export async function makeIcon(o) {
   await ensureDir(outDir);
   const master = await renderMaster(o);
   const out = {};
+  if (o.cutout) out.cutout = await cutoutNote(o.source);
   if (formats.includes('ico')) {
     out.ico = path.join(outDir, `${name}.ico`);
     await atomicWrite(out.ico, await pngToIco(await Promise.all(ICO_SIZES.map((s) => resizePng(master, s)))));
