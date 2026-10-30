@@ -249,6 +249,56 @@ function Restore-DesktopIcon([string]$key) {
   [pscustomobject]@{ restored = $true; item = $it.name }
 }
 
+# Where a desktop item's own icon comes from: the icon it had before iconwright changed it,
+# else what Explorer shows now. Returns {file,index,name}, {shell,name} or {fail}.
+function Get-DesktopIconSource([string]$key) {
+  $state = Get-State
+  $sys = Get-SystemIconKey $key
+  if ($sys) {
+    $clsid = $SystemIcons[$sys]; $loc = $null
+    $o = $state.originals.PSObject.Properties["clsid:$clsid"]
+    if ($o) {
+      $vals = $o.Value | ConvertFrom-Json
+      $d = if ($vals) { $vals.PSObject.Properties['(default)'] } else { $null }
+      if ($d) { $loc = if ($d.Value -is [pscustomobject]) { [string]$d.Value.value } else { [string]$d.Value } }
+      if (-not $loc) {
+        # No per-user icon before iconwright: Windows' own one. Explorer would show ours now.
+        $m = Get-Item -LiteralPath "HKLM:\SOFTWARE\Classes\CLSID\$clsid\DefaultIcon" -ErrorAction SilentlyContinue
+        if ($m) { $loc = [string]$m.GetValue('', $null, 'DoNotExpandEnvironmentNames') }
+      }
+    }
+    if ($loc) { $r = Split-IconLocation $loc "::$clsid"; $r.name = $sys; return $r }
+    return @{ shell = "::$clsid"; name = $sys }
+  }
+  $it = Find-DesktopItem $key (Get-DesktopItems); $p = $it.path
+  $o = $state.originals.PSObject.Properties[$p]
+  if (-not $o) { return @{ shell = $p; name = $it.name } }   # unchanged: exactly what the desktop shows
+  $v = [string]$o.Value; $loc = $null
+  if ($v.StartsWith('folder:')) {
+    $f = $v.Substring(7) | ConvertFrom-Json
+    if ($f.ini) {
+      $bytes = [Convert]::FromBase64String($f.ini)
+      $text = [Text.Encoding]::Unicode.GetString($bytes)
+      if ($text -notmatch 'IconResource=') { $text = [Text.Encoding]::UTF8.GetString($bytes) }
+      $m = [regex]::Match($text, '(?m)^\s*IconResource=(.+?)\s*$')
+      if ($m.Success) { $loc = $m.Groups[1].Value }
+    }
+    if (-not $loc) { $loc = '%SystemRoot%\System32\imageres.dll,-3' }   # the standard folder icon
+  } elseif ($v -and $v -notmatch '^\s*,?\s*-?\d*\s*$') { $loc = $v }   # ",0" = no icon of its own
+  elseif ($p -like '*.lnk') { $t = [Iconwright.Lnk]::GetTarget($p); if ($t) { $loc = "$t,0" } }
+  if (-not $loc) { return @{ fail = "'$($it.name)' had Windows' default icon before iconwright changed it. Restore its icon first (restore_icons), then restyle it." } }
+  $r = Split-IconLocation $loc $p; $r.name = $it.name; $r
+}
+
+# "file,index" (environment variables allowed) -> {file,index}, or {shell} when the file is gone.
+function Split-IconLocation([string]$loc, [string]$fallback) {
+  $file = $loc; $index = 0
+  if ($loc -match '^(.*),(-?\d+)$') { $file = $Matches[1]; $index = [int]$Matches[2] }
+  $file = [Environment]::ExpandEnvironmentVariables($file.Trim('"'))
+  if ($file -and (Test-Path -LiteralPath $file)) { return @{ file = $file; index = $index } }
+  @{ shell = $fallback }
+}
+
 function Set-SystemIconsShown([string[]]$names, [bool]$show) {
   if (-not (Test-Path -LiteralPath $HideKey)) { New-Item -Path $HideKey -Force | Out-Null }
   $done = @()
@@ -296,6 +346,27 @@ function Invoke-DesktopCommand([string]$sub) {
     'set-icon' {
       if (@($Item).Count -ne 1 -or -not $Icon) { Fail 'desktop-set-icon needs one -Item and -Icon <file.ico>' }
       Out-Json (Set-DesktopIcon $Item[0] (Resolve-Path -LiteralPath $Icon).Path $IconIndex)
+    }
+    'icon-image' {
+      # Saves each item's own icon as an image to restyle; .ico files are returned as they are.
+      $dir = if ($File) { $File } else { Join-Path $Home_ 'cache\desktop-icons' }
+      New-Item -ItemType Directory -Force $dir | Out-Null
+      Out-Json @(foreach ($k in @($Item)) {
+        try {
+          $src = Get-DesktopIconSource $k
+          # A hashtable: index it, since a missing key read as a property fails under strict mode.
+          if ($src['fail']) { throw $src['fail'] }
+          if ($src['file'] -and $src['file'] -match '\.ico$') { $img = $src['file'] }
+          else {
+            # Two names can clean up to the same text, so the file name also carries a hash.
+            $h = [BitConverter]::ToString((New-Object Security.Cryptography.SHA1Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes([string]$k))).Replace('-', '').Substring(0, 8)
+            $img = Join-Path $dir ((([string]$src['name']) -replace '[^\w.-]+', '-') + "-$h.png")
+            if ($src['file']) { [void][Iconwright.IconImage]::FromFile($src['file'], $src['index'], 256, $img) }
+            else { [void][Iconwright.IconImage]::FromShellItem($src['shell'], 256, $img) }
+          }
+          [pscustomobject]@{ item = $src['name']; image = $img }
+        } catch { [pscustomobject]@{ item = $k; error = $_.Exception.Message } }
+      })
     }
     'restore' { Out-Json @($Item | ForEach-Object { Restore-DesktopIcon $_ }) }
     'save' {

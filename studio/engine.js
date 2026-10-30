@@ -45,12 +45,15 @@ function OffscreenCanvasOr(w, h) {
 const artCache = new Map();
 /**
  * Load artwork for a source: an Iconify id, raw SVG, or (local studio) app:<name> or a file path.
- * api(op, params) reaches the local server.
+ * api(op, params) reaches the server. cutout: with the artwork's own background removed, which is
+ * pixel work the server does (the result matches the agent tools exactly).
  */
-export function loadArt(source, api) {
-  if (artCache.has(source)) return artCache.get(source);
+export function loadArt(source, api, { cutout = false } = {}) {
+  const key = cutout ? `${source}|cutout` : source;
+  if (artCache.has(key)) return artCache.get(key);
   const p = (async () => {
     const s = source.trim();
+    if (cutout) return api('art', { source: s, cutout: true });
     if (s.startsWith('<')) return measureSvg(s);
     const m = /^([a-z0-9-]+):([a-z0-9-]+)$/i.exec(s);
     if (m && !/^app:/i.test(s)) {
@@ -61,8 +64,8 @@ export function loadArt(source, api) {
     }
     return api('art', { source: s });   // local: app icons and files, measured by the server
   })();
-  artCache.set(source, p);
-  p.catch(() => artCache.delete(source));
+  artCache.set(key, p);
+  p.catch(() => artCache.delete(key));
   if (artCache.size > 80) artCache.delete(artCache.keys().next().value);
   return p;
 }

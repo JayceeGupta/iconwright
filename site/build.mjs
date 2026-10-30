@@ -60,7 +60,7 @@ iconwright's MCP server has ${TOOLS.length} tools. The design tools work on any 
 
 Every tool rejects arguments it doesn't know, so a typo is an error instead of being silently ignored. Read-only tools are marked so clients can run them without asking.
 
-**Style strings.** Tools that style an icon take one \`style\` argument: space-separated \`key=value\` pairs. Keys: \`color\` (recolors the artwork), \`bg\` (a CSS color or \`linear-gradient(135deg,#a,#b)\`), \`shape\` (\`none\`, \`square\`, \`rounded\`, \`squircle\`, \`circle\`), \`radius\` (0–0.5), \`padding\` (0–0.45) and \`shadow\`. Example: \`color=white bg=#2d5ba6 shape=squircle shadow\`.
+**Style strings.** Tools that style an icon take one \`style\` argument: space-separated \`key=value\` pairs. Keys: \`color\` (recolors the artwork), \`bg\` (a CSS color or \`linear-gradient(135deg,#a,#b)\`), \`shape\` (\`none\`, \`square\`, \`rounded\`, \`squircle\`, \`circle\`), \`radius\` (0–0.5), \`padding\` (0–0.45), \`shadow\` and \`cutout\` (removes the artwork's own background tile, keeping the foreground). Example: \`color=white bg=#2d5ba6 shape=squircle shadow\`.
 
 `;
   for (const g of groups) {

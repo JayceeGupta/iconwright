@@ -51,18 +51,21 @@ color=#25282d padding=0.12
 color=white bg=linear-gradient(135deg,#e9c46a,#c47335) shape=rounded radius=0.3
 ```
 
-Keys: `color`, `bg`, `shape` (`none`, `square`, `rounded`, `squircle`, `circle`), `radius` (0 to 0.5), `padding` (0 to 0.45), `shadow`. A typo is an error that names the valid keys.
+Keys: `color`, `bg`, `shape` (`none`, `square`, `rounded`, `squircle`, `circle`), `radius` (0 to 0.5), `padding` (0 to 0.45), `shadow`, `cutout` (removes the artwork's own solid background, such as an app's tile, and keeps the foreground). A typo is an error that names the valid keys.
 
 ### Sources
 
 - An Iconify id: `mdi:music`, `ph:rocket-launch-fill`. Brand logos: `simple-icons:<brand>`.
 - A file: `.svg`, `.png`, `.jpg`, `.webp` or `.ico`.
 - Raw SVG text.
-- `app:<App name>`: an installed Windows app's current icon. Useful for restyling an app's own artwork.
+- `app:<App name>`: an installed Windows app's own icon (the one it had before iconwright changed it). Useful for restyling an app's own artwork.
+- `desktop:<item>`: a desktop item's own icon, by name from `desktop_info` or a system icon name (`this-pc`, `recycle-bin`, …).
 
 ### Windows: batch, don't loop
 
-- Restyle many apps in **one** `app_apply_icon` call. Source `"app"` restyles each app's own icon: `apps: [all pinned names], source: "app", style: "color=white"`.
+- Restyle many apps in **one** `app_apply_icon` call. Source `"app"` restyles each app's own icon: `apps: [all pinned names], source: "app", style: "color=white"`. Add `cutout` to drop the tiles icons sit on and keep only their glyphs: `style: "cutout color=white"`. Icons without a solid background are kept as they are; each result's `cutout` field says which.
+- Desktop items work the same way, one at a time: `desktop_apply_icon` with `source: "item"` restyles the item's own icon.
+- To make the restyled file without putting it on anything, use `make_icon` with an `app:<name>` or `desktop:<item>` source.
 - `taskbar_pins` takes `pin`, `unpin` and `order` together and restarts Explorer **once**. Every separate call is another restart, which closes File Explorer windows and can upset taskbar styling tools. Use `dryRun: true` to check the resulting order first.
 - If a result includes a `hint` about refreshing, call `taskbar_refresh` once at the end, not after each change.
 - Get exact app names from `taskbar_status` or `find_apps`.

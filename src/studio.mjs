@@ -12,6 +12,7 @@ import { readFile, mkdtemp, rm, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { resizePng, makeIcon, parseStyle, formatStyle, FORMATS, safeName, defaultOutDir, artFor } from './render.mjs';
+import { resolveOwnIcons, isOwnIcon } from './own-icons.mjs';
 import { searchIconsDetailed, isIconId, loadSource } from './source.mjs';
 import { zip } from './zip.mjs';
 
@@ -67,15 +68,13 @@ export function createStudioHandler({ local = false, token = null, win = null, e
       }
       return s;
     }
-    // Before the Iconify check: "app:zen" looks like an icon id.
-    if (local && /^app:/i.test(s) && win) {
-      const [img] = await win('app-icon-image', { app: [s.slice(4)] });
-      if (img?.error) throw new HttpError(400, img.error);
-      return img.image;
+    // Before the Iconify check: "app:zen" and "desktop:this-pc" look like icon ids.
+    if (local && isOwnIcon(s) && win) {
+      try { return (await resolveOwnIcons([s], win))[0]; } catch (e) { throw new HttpError(400, e.message); }
     }
     if (isIconId(s)) return s;
     if (local && path.isAbsolute(s)) return s;
-    throw new HttpError(400, local ? 'Use an Iconify id, pasted SVG, an image file path or app:<name>.' : 'Use an Iconify id or pasted SVG.');
+    throw new HttpError(400, local ? 'Use an Iconify id, pasted SVG, an image file path, app:<name> or desktop:<item>.' : 'Use an Iconify id or pasted SVG.');
   }
   const style = (p) => { try { return parseStyle(p.style); } catch (e) { throw new HttpError(400, e.message); } };
 
@@ -89,8 +88,9 @@ export function createStudioHandler({ local = false, token = null, win = null, e
       return { icons: r.icons, total: r.total, collections: r.collections };
     },
     // Measured artwork for the browser to draw: { svg, box } or { href, width, height, box }.
+    // cutout: with the artwork's own background removed (pixel work, so done here).
     async art(p) {
-      return artFor(await source(p.source));
+      return artFor(await source(p.source), { cutout: p.cutout === true || p.cutout === 'true' });
     },
     async download(p) {
       const format = String(p.format || 'ico');

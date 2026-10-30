@@ -58,7 +58,8 @@ export async function applyIcons(o, win) {
       const label = apps.length === 1 && o.name ? o.name : (o.source === 'app' ? r.app : (o.name || (apps.length === 1 ? r.app : 'icon')));
       const key = r.source;
       if (!made.has(key)) made.set(key, await makeStyled(r.source, label, o));
-      Object.assign(r, { ico: made.get(key).ico, preview: made.get(key).preview });
+      const m = made.get(key);
+      Object.assign(r, { ico: m.ico, preview: m.preview, ...(m.cutout ? { cutout: m.cutout } : {}) });
     } catch (e) { r.error = e.message; }
     delete r.source;
   }
@@ -107,8 +108,14 @@ export async function applyIcons(o, win) {
 export async function applyDesktopIcon(o, win) {
   if (!o.item) throw new Error('item is required');
   if (Boolean(o.source) === Boolean(o.icon)) throw new Error('give exactly one of source (to make an icon) or icon (an existing .ico file)');
-  let icon = o.icon, made = null;
-  if (!icon) { made = await makeStyled(o.source, o.name || o.item, o); icon = made.ico; }
+  let icon = o.icon, made = null, source = o.source;
+  if (source === 'item') {
+    // The item's own icon (from before iconwright changed it), to restyle in place.
+    const [img] = await win('desktop-icon-image', { item: [o.item] });
+    if (!img || img.error) throw new Error(`Reading the icon of ${o.item} failed: ${img?.error ?? 'no image'} Nothing on the PC was changed.`);
+    source = img.image;
+  }
+  if (!icon) { made = await makeStyled(source, o.name || o.item, o); icon = made.ico; }
   const set = await win('desktop-set-icon', { item: o.item, icon, iconIndex: o.iconIndex });
-  return { ico: icon, preview: made?.preview, set };
+  return { ico: icon, preview: made?.preview, ...(made?.cutout ? { cutout: made.cutout } : {}), set };
 }

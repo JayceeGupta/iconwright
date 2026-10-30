@@ -7,10 +7,10 @@ import { toJson } from './output.mjs';
 import { parseStyle } from './render.mjs';
 
 const out = toJson;
-const STYLE = { style: 'string', color: 'string', bg: 'string', shape: 'string', radius: 'number', padding: 'number', shadow: 'boolean', name: 'string', out: 'string' };
+const STYLE = { style: 'string', cutout: 'boolean', color: 'string', bg: 'string', shape: 'string', radius: 'number', padding: 'number', shadow: 'boolean', name: 'string', out: 'string' };
 const RESTART = { 'no-restart': 'boolean', cooldown: 'number' };
 const restartOpts = (v) => ({ noRestart: v['no-restart'], restartCooldown: v.cooldown });
-const styleOpts = (v) => ({ ...parseStyle(v.style), ...Object.fromEntries(['color','bg','shape','radius','padding','shadow'].filter((k) => v[k] !== undefined).map((k) => [k,v[k]])), name: v.name, outDir: v.out });
+const styleOpts = (v) => ({ ...parseStyle(v.style), ...Object.fromEntries(['cutout','color','bg','shape','radius','padding','shadow'].filter((k) => v[k] !== undefined).map((k) => [k,v[k]])), name: v.name, outDir: v.out });
 
 // Registers a command whose arguments follow `spec`; `--help` prints `usage`.
 function command(name, usage, spec, handler) {
@@ -109,7 +109,7 @@ const DESKTOP = {
     return win('desktop-system', { item: pos, value: v.show ? 'show' : 'hide' });
   }],
   apply: [{ positional: 'any', flags: { source: 'string', icon: 'string', index: 'number', ...STYLE } }, (v, pos) => {
-    need(pos.length === 1, 'desktop apply <item> (--source <ref> [style] | --icon file.ico)');
+    need(pos.length === 1, 'desktop apply <item> (--source <ref|item> [style] | --icon file.ico)');
     return applyDesktopIcon({ item: pos[0], source: v.source, icon: v.icon, iconIndex: v.index, ...styleOpts(v) }, win);
   }],
   restore: [{ positional: 'any' }, (v, pos) => { need(pos.length, 'desktop restore <item...>'); return win('desktop-restore', { item: pos }); }],

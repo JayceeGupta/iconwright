@@ -19,13 +19,14 @@ Run the rounds in order; each ends when the user has picked.
 
 When the user wants to adjust by hand, `open_studio` with the current source and style; they paste back what the studio's "Copy for agent" button gives them.
 
-**Style strings** carry every look: `color=white bg=#2d5ba6 shape=squircle shadow`. Keys: `color`, `bg` (CSS color or `linear-gradient(135deg,#a,#b)`), `shape` (`none` `square` `rounded` `squircle` `circle`), `radius` (0 to 0.5), `padding` (0 to 0.45), `shadow`. Quote them back to the user so they can reuse them.
+**Style strings** carry every look: `color=white bg=#2d5ba6 shape=squircle shadow`. Keys: `color`, `bg` (CSS color or `linear-gradient(135deg,#a,#b)`), `shape` (`none` `square` `rounded` `squircle` `circle`), `radius` (0 to 0.5), `padding` (0 to 0.45), `shadow`, `cutout` (removes the artwork's own solid background, like an app's tile, keeping the foreground). Quote them back to the user so they can reuse them.
 
-**Sources**: Iconify ids, image files, raw `<svg>`, or `app:<App name>` for an installed Windows app's current icon.
+**Sources**: Iconify ids, image files, raw `<svg>`, `app:<App name>` for an installed Windows app's own icon, or `desktop:<item>` for a desktop item's.
 
 ## Changing Windows
 
 - **Restyle many apps in one `app_apply_icon` call.** "Make my taskbar icons white": `taskbar_status` for the names, then one call with every name, `source: "app"`, `style: "color=white"`. Preview two or three of them first with `design_icons` (`app:<name>` sources) when the look is new to the user.
+- **Restyle what is already there.** `source: "app"` (apps) and `source: "item"` (`desktop_apply_icon`) start from the current icon, the one from before iconwright changed it. Add `cutout` to drop the tile an icon sits on: "just the glyphs, in white" is `style: "cutout color=white"`. Each result's `cutout` field says whether a background was found; ones without are kept as they are. To only make the file, use `make_icon` with an `app:<name>` or `desktop:<item>` source.
 - **One `taskbar_pins` call per request.** It takes `pin`, `unpin` and `order` together and restarts Explorer once (the taskbar blinks; File Explorer windows close). Run it with `dryRun: true` first when the resulting order matters, and say a restart is coming.
 - **Refresh once, at the end.** When a result carries a refresh `hint`, finish all other changes, then call `taskbar_refresh` once.
 - **Exact names** come from `taskbar_status` or `find_apps`.

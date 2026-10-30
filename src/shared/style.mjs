@@ -3,9 +3,10 @@
 import { parseColor, parsePaint } from './color.mjs';
 
 export const SHAPES = ['none', 'square', 'rounded', 'squircle', 'circle'];
-export const STYLE_KEYS = ['color', 'bg', 'shape', 'radius', 'padding', 'shadow'];
+export const STYLE_KEYS = ['cutout', 'color', 'bg', 'shape', 'radius', 'padding', 'shadow'];
+const FLAGS = ['cutout', 'shadow'];   // keys that are on when named, like "shadow"
 export const DEFAULT_RADIUS = 0.22;
-export const STYLE_HELP = 'Look, "key=value ...": color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none|square|rounded|squircle|circle, radius=0-0.5, padding=0-0.45, shadow';
+export const STYLE_HELP = 'Look, "key=value ...": cutout (drops the art\'s own background tile), color=<css> (recolors art), bg=<css or linear-gradient(135deg,#a,#b)>, shape=none|square|rounded|squircle|circle, radius=0-0.5, padding=0-0.45, shadow';
 
 /** Only the style options that change the look (drops undefined). */
 export function pickStyle(o = {}) {
@@ -32,7 +33,7 @@ export function parseStyle(text) {
   for (const token of styleTokens(String(text).trim())) {
     const eq = token.indexOf('=');
     const key = (eq < 0 ? token : token.slice(0, eq)).toLowerCase(), value = eq < 0 ? '' : token.slice(eq + 1).replace(/^["']|["']$/g, '');
-    if (key === 'shadow') { out.shadow = !['false', 'no', 'off', '0'].includes(value.toLowerCase()); continue; }
+    if (FLAGS.includes(key)) { out[key] = !['false', 'no', 'off', '0'].includes(value.toLowerCase()); continue; }
     if (!STYLE_KEYS.includes(key)) throw new Error(`unknown style key "${key}" (use ${STYLE_KEYS.join(', ')})`);
     if (!value) throw new Error(`style key "${key}" needs a value, e.g. ${key}=${{ color: 'white', bg: '#1DB954', shape: 'squircle', radius: '0.22', padding: '0.2' }[key]}`);
     if (key === 'radius' || key === 'padding') {
@@ -54,12 +55,12 @@ export function parseStyle(text) {
 /** The style string for style options (the inverse of parseStyle). */
 export function formatStyle(o = {}) {
   return STYLE_KEYS.filter((k) => o[k] !== undefined && o[k] !== null && o[k] !== false)
-    .map((k) => (k === 'shadow' ? 'shadow' : `${k}=${String(o[k]).replace(/\s+/g, '')}`)).join(' ');
+    .map((k) => (FLAGS.includes(k) ? k : `${k}=${String(o[k]).replace(/\s+/g, '')}`)).join(' ');
 }
 
 const hasBg = (bg) => !!bg && bg !== 'transparent' && bg !== 'none';
 
-/** Fills in defaults and checks ranges: { color, bg, shape, radius, padding, shadow }. */
+/** Fills in defaults and checks ranges: { cutout, color, bg, shape, radius, padding, shadow }. */
 export function normalizeStyle(o = {}) {
   const shape = o.shape ?? (hasBg(o.bg) ? 'rounded' : 'none');
   if (!SHAPES.includes(shape)) throw new Error(`shape must be one of ${SHAPES.join(', ')}`);
@@ -68,5 +69,5 @@ export function normalizeStyle(o = {}) {
   if (!Number.isFinite(padding) || padding < 0 || padding >= 0.5) throw new Error('padding must be a fraction from 0 to 0.45');
   const radius = Number(o.radius ?? DEFAULT_RADIUS);
   if (!Number.isFinite(radius)) throw new Error('radius must be a fraction from 0 to 0.5');
-  return { color: o.color ?? null, bg: drawn ? o.bg : null, shape: drawn ? shape : 'none', radius: Math.max(0, Math.min(0.5, radius)), padding, shadow: !!o.shadow };
+  return { cutout: !!o.cutout, color: o.color ?? null, bg: drawn ? o.bg : null, shape: drawn ? shape : 'none', radius: Math.max(0, Math.min(0.5, radius)), padding, shadow: !!o.shadow };
 }

@@ -111,7 +111,11 @@ async function draw() {
   if (!art) return;
   const seq = ++drawSeq;
   let next;
-  try { next = await Icon.create(art, state.style); } catch (e) { return status(e.message, true); }
+  try {
+    const look = state.style.cutout ? await loadArt(state.source, api, { cutout: true }) : art;
+    if (seq !== drawSeq) return;
+    next = await Icon.create(look, state.style);
+  } catch (e) { return status(e.message, true); }
   if (seq !== drawSeq) { next.dispose(); return; }
   icon?.dispose(); icon = next;
   $('big').src = icon.url;
@@ -329,7 +333,7 @@ const thumbCache = new Map();
 async function thumb(source, style) {
   const key = `${source}|${formatStyle(style)}`;
   if (!thumbCache.has(key)) {
-    thumbCache.set(key, loadArt(source, api).then((a) => Icon.create(a, style)).then((i) => i.raster(64 * dpr)));
+    thumbCache.set(key, loadArt(source, api, { cutout: !!style.cutout }).then((a) => Icon.create(a, style)).then((i) => i.raster(64 * dpr)));
     if (thumbCache.size > 120) thumbCache.delete(thumbCache.keys().next().value);
   }
   return thumbCache.get(key);
@@ -431,6 +435,7 @@ function syncControls() {
   $('sizeOut').value = st.padding == null ? `Auto (${size}%)` : `${size}%`;
   $('sizeAuto').hidden = st.padding == null;
   $('shadow').checked = !!st.shadow;
+  $('cutout').checked = !!st.cutout;
   updateCode();
 }
 function updateCode() {
@@ -573,7 +578,8 @@ function wire() {
   $('size').onchange = commit;
   $('sizeAuto').onclick = () => setStyle({ padding: undefined });
   $('shadow').onchange = () => setStyle({ shadow: $('shadow').checked });
-  $('reset').onclick = () => setStyle({ color: undefined, bg: undefined, shape: undefined, radius: undefined, padding: undefined, shadow: undefined });
+  $('cutout').onchange = () => setStyle({ cutout: $('cutout').checked });
+  $('reset').onclick = () => setStyle({ cutout: undefined, color: undefined, bg: undefined, shape: undefined, radius: undefined, padding: undefined, shadow: undefined });
   let codeTimer = 0;
   $('styleText').oninput = () => {
     clearTimeout(codeTimer);
