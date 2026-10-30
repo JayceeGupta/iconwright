@@ -34,6 +34,17 @@ test('cutout handles gradient plates and plates that run to the image edge', asy
   assert.equal(alphaAt(img, 128 - 60, 128), 255);
 });
 
+test('a transparent hole inside the artwork does not eat into the glyph around it', async () => {
+  // A bar glyph on a tile, with a small hole punched through the middle of the bar.
+  const img = await pixels(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
+    <defs><mask id="m"><rect width="256" height="256" fill="#fff"/><rect x="124" y="124" width="8" height="8" fill="#000"/></mask></defs>
+    <g mask="url(#m)"><rect x="4" y="4" width="248" height="248" rx="40" fill="#000"/><rect x="60" y="100" width="136" height="56" fill="#fff"/></g>
+  </svg>`));
+  assert.equal(cutoutPixels(img.data, img.info.width, img.info.height), '#000000');
+  assert.equal(alphaAt(img, 140, 128), 255, 'glyph next to the hole');
+  assert.equal(alphaAt(img, 128, 128), 0, 'the hole');
+});
+
 test('cutout leaves artwork without a plate alone', async () => {
   // A bare glyph on transparency, and a glyph that is all one color.
   for (const svg of [

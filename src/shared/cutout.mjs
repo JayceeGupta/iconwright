@@ -76,12 +76,22 @@ export function cutoutPixels(data, width, height) {
   // without crossing the plate (a tile's border, glow or antialiased outline).
   const reach = Math.max(2, Math.round(Math.max(width, height) * 0.06));
   const depth = new Int16Array(n).fill(-1);
+  // Seeds: the transparent surround (clear pixels connected to the image border, not a hole
+  // inside the artwork), and the image border itself (tiles often run to the edge).
   let queue = [];
-  // Seeds: the transparent surround, and the image border (tiles often run to the edge).
   for (let p = 0; p < n; p++) {
     const x = p % width, y = (p / width) | 0;
-    const border = x === 0 || y === 0 || x === width - 1 || y === height - 1;
-    if (wasClear[p] || (border && !isPlate[p])) { depth[p] = 0; data[p * 4 + 3] = 0; queue.push(p); }
+    if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+      if (wasClear[p] || !isPlate[p]) { depth[p] = 0; queue.push(p); }
+    }
+  }
+  for (let k = 0; k < queue.length; k++) {
+    const p = queue[k], x = p % width, y = (p / width) | 0;
+    data[p * 4 + 3] = 0;
+    if (!wasClear[p]) continue;
+    for (const q of [x > 0 ? p - 1 : -1, x < width - 1 ? p + 1 : -1, y > 0 ? p - width : -1, y < height - 1 ? p + width : -1]) {
+      if (q >= 0 && depth[q] < 0 && wasClear[q]) { depth[q] = 0; queue.push(q); }
+    }
   }
   while (queue.length) {
     const next = [];

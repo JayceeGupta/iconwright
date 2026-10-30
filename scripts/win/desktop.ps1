@@ -259,8 +259,13 @@ function Get-DesktopIconSource([string]$key) {
     $o = $state.originals.PSObject.Properties["clsid:$clsid"]
     if ($o) {
       $vals = $o.Value | ConvertFrom-Json
-      $d = if ($vals) { $vals.PSObject.Properties[''] } else { $null }
+      $d = if ($vals) { $vals.PSObject.Properties['(default)'] } else { $null }
       if ($d) { $loc = if ($d.Value -is [pscustomobject]) { [string]$d.Value.value } else { [string]$d.Value } }
+      if (-not $loc) {
+        # No per-user icon before iconwright: Windows' own one. Explorer would show ours now.
+        $m = Get-Item -LiteralPath "HKLM:\SOFTWARE\Classes\CLSID\$clsid\DefaultIcon" -ErrorAction SilentlyContinue
+        if ($m) { $loc = [string]$m.GetValue('', $null, 'DoNotExpandEnvironmentNames') }
+      }
     }
     if ($loc) { $r = Split-IconLocation $loc "::$clsid"; $r.name = $sys; return $r }
     return @{ shell = "::$clsid"; name = $sys }
