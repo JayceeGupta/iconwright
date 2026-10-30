@@ -67,12 +67,13 @@ export function createStudioHandler({ local = false, token = null, win = null, e
       }
       return s;
     }
-    if (isIconId(s)) return s;
+    // Before the Iconify check: "app:zen" looks like an icon id.
     if (local && /^app:/i.test(s) && win) {
       const [img] = await win('app-icon-image', { app: [s.slice(4)] });
       if (img?.error) throw new HttpError(400, img.error);
       return img.image;
     }
+    if (isIconId(s)) return s;
     if (local && path.isAbsolute(s)) return s;
     throw new HttpError(400, local ? 'Use an Iconify id, pasted SVG, an image file path or app:<name>.' : 'Use an Iconify id or pasted SVG.');
   }

@@ -32,7 +32,8 @@ register('make', async (args) => {
   const usage = 'Usage: iconwright make <source> [--style "..."] [--color ..] [--bg ..] [--shape ..] [--radius ..] [--padding ..] [--shadow] [--formats ico,png,icns,web,pngset] [--name n] [--out dir] [--png-size N]';
   if (help) return usage;
   if (!positional.length) throw new Error(usage);
-  const made = await makeIcon({ source: positional[0], ...style(v), name: v.name, outDir: v.out, pngSize: v['png-size'], formats: csv(v.formats) });
+  const [source] = await resolveAppSources(positional.slice(0, 1));
+  const made = await makeIcon({ source, ...style(v), name: v.name, outDir: v.out, pngSize: v['png-size'], formats: csv(v.formats) });
   return Object.entries(made).map(([format, file]) => `${format}: ${file}`).join('\n');
 }, 'make <source> [options]');
 

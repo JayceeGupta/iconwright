@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Fix:** `iconwright make app:<name>` failed with "unsupported source"; `make` now reads the app's icon like `design` and `preview` do.
+- **Fix:** in the local studio, app names that look like Iconify ids (`app:Zen`) were looked up on Iconify and failed with "no icon".
+- **Fix:** desktop commands that look up an item (set an icon, restore, move) failed with a PowerShell property error when the desktop is empty, instead of saying the item wasn't found.
+
 ## 0.3.1 (2026-10-30)
 
 - `iconwright --version` (or `-v`) prints the version, and `help` no longer lists `report` twice.
