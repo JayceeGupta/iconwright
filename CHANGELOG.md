@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-10-31)
 
 - **`cutout` style key: restyle an icon's foreground on its own.** It removes the artwork's own solid background, such as the tile an app icon sits on, and crops to what's left, so the glyph fills the icon. `cutout color=white` turns app tiles into bare white glyphs; `cutout bg=#2563eb shape=squircle` puts them on a new tile. Artwork without a solid background is kept as it is, and results say which (`cutout` field). Works in every tool, the command line (`--cutout`) and the studio (a new switch).
 - **Restyle desktop items' own icons.** `desktop_apply_icon` takes `source: "item"`, and `desktop:<item>` works as a source wherever `app:<name>` does. Like apps, it starts from the icon the item had before iconwright changed it.

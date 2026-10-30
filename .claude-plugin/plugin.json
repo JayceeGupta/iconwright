@@ -1,6 +1,6 @@
 {
   "name": "iconwright",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "An MCP server that restyles your Windows taskbar and desktop: app icons, pins and desktop layout, with undo. Also designs custom icons, previews them in place and exports .ico, .icns and favicons.",
   "author": { "name": "Jayam Gupta" },
   "homepage": "https://iconwright.guptajayam.com",
