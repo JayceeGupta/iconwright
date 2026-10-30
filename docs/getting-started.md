@@ -16,7 +16,7 @@ Run these two commands inside Claude Code:
 
 ```text
 /plugin marketplace add JayceeGupta/iconwright
-/plugin install iconwright@icon-playground
+/plugin install iconwright@iconwright
 ```
 
 Restart Claude Code if it asks. You get the MCP tools, a skill that teaches Claude to use them well, and four commands in the `/` menu: design-icon, restyle-taskbar, tidy-desktop and undo-everything.
