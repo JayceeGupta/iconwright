@@ -134,7 +134,10 @@ function Set-DesktopIcon([string]$key, [string]$ico, [int]$idx) {
       $orig = @{}
       if (Test-Path -LiteralPath $k) {
         $item = Get-Item -LiteralPath $k
-        foreach ($n in $item.Property) { $orig[$n] = @{ value = $item.GetValue($n, $null, 'DoNotExpandEnvironmentNames'); kind = [string]$item.GetValueKind($n) } }
+        # GetValueNames, not .Property: .Property calls the default value "(default)", a name
+        # GetValue and GetValueKind don't know (its real name is ''). It's stored as "(default)",
+        # since Windows PowerShell can't read a JSON key that is an empty string.
+        foreach ($n in $item.GetValueNames()) { $orig[$(if ($n) { $n } else { '(default)' })] = @{ value = $item.GetValue($n, $null, 'DoNotExpandEnvironmentNames'); kind = [string]$item.GetValueKind($n) } }
       }
       $state.originals | Add-Member -NotePropertyName $id -NotePropertyValue ($orig | ConvertTo-Json -Compress -Depth 4)
       Save-State $state
