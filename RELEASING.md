@@ -13,13 +13,26 @@ Releases are published by GitHub Actions ([`release.yml`](.github/workflows/rele
 
 The workflow runs the full CI matrix, checks that the tag matches both version fields and has a changelog entry, publishes to npm, and creates the GitHub release from the changelog entry. Watch it with `gh run watch`.
 
-Afterwards, try it from the registry: `npx -y iconwright@<version> --version`, `npx -y iconwright report`, and `npx -y iconwright mcp` in an MCP client.
+npm takes a few minutes to show a new version: the publish log ends with "Your package is being processed", and until then `npm view iconwright@<version>` returns 404. That's normal; wait, don't publish again.
 
-### One-time setup (done)
+Afterwards, try it from the registry: `npx -y iconwright@<version> --version`, `npx -y iconwright report`, and `npx -y iconwright mcp` in an MCP client. `npm view iconwright@<version> dist.attestations` shows the provenance.
 
-- npmjs.com → iconwright → Settings → Trusted publisher: GitHub Actions, owner `JayceeGupta`, repository `iconwright`, workflow `release.yml`, environment `npm`.
+Pick the version by what changed: new tools, options or style keys are a minor version; fixes only are a patch. Every tagged version must be published: 0.3.1 was committed but never tagged, so its changes first shipped in 0.4.0.
+
+### One-time setup
+
+The first release through the workflow was 0.4.0 (2026-10-31). Done:
+
+- npmjs.com → iconwright → Settings → Trusted publisher: GitHub Actions, owner `JayceeGupta`, repository `iconwright`, workflow `release.yml`, environment `npm`, label "GitHub release workflow (release.yml)". Under "Allowed actions", **Allow npm publish** is on (the workflow runs `npm publish`; without it the publisher can only `npm stage publish`) and **Allow npm dist-tag** is off. These fields can't be edited later; to change them, delete the publisher and add a new one.
 - GitHub → Settings → Environments → `npm`: deployments only from `v*` tags.
-- npmjs.com → iconwright → Settings → Publishing access: "Require two-factor authentication and disallow tokens", so only the workflow can publish.
+
+To do: npmjs.com → iconwright → Settings → Publishing access: "Require two-factor authentication and disallow tokens", so only the workflow can publish.
+
+Notes for whoever sets this up again:
+
+- Add the trusted publisher on the website. `npm trust github iconwright --file release.yml --repo JayceeGupta/iconwright --env npm` (npm 11.11) failed with a bare "400 Bad Request" and no reason, though the values and the login were fine.
+- A new trusted publisher is "Pending validation" until a publish uses it, and npm sets a deadline (two days) for that first publish. Push the release tag soon after adding it.
+- To require approval for each release instead, turn off "Allow npm publish", change the workflow to `npm stage publish`, and approve each staged version on npmjs.com with 2FA.
 
 The Claude Code plugin runs from its own checkout (`.claude-plugin/plugin.json`), so it doesn't depend on npm.
 
