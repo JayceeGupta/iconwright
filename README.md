@@ -36,7 +36,7 @@ Say “make all my taskbar icons white”, “pin Spotify next to Chrome” or �
 
 ```text
 /plugin marketplace add JayceeGupta/iconwright
-/plugin install iconwright@icon-playground
+/plugin install iconwright@iconwright
 ```
 
 **Codex**:

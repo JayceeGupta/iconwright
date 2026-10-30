@@ -1,7 +1,7 @@
 {
-  "name": "icon-playground",
+  "name": "iconwright",
   "owner": { "name": "Jayam Gupta" },
-  "metadata": { "description": "Icon Playground: restyle the Windows taskbar and desktop with your agent, and design custom icons." },
+  "metadata": { "description": "Restyle the Windows taskbar and desktop with your agent, and design custom icons." },
   "plugins": [
     {
       "name": "iconwright",
