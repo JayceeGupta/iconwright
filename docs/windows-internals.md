@@ -2,7 +2,7 @@
 
 How Windows decides which icon to show, and where it keeps pinned apps. These are the findings behind `scripts/win/`: read them before changing the pin, icon or desktop logic. For a plain-language overview, see [How it works](how-it-works.md).
 
-> **Note:** Verified on 2026-10-27 on Windows 11 build 26200 with StartAllBack 3.9.
+*Verified on 2026-10-27 on Windows 11 build 26200 with StartAllBack 3.9.*
 
 ## Where a taskbar button's icon comes from
 - **Running app with an explicit AppUserModelID** (Electron apps like T3 Code, VS Code): the icon

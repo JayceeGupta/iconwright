@@ -10,8 +10,9 @@ import { Marked } from 'marked';
 import sharp from 'sharp';
 import pngToIco from 'png-to-ico';
 import { renderMaster, resizePng, parseStyle } from '../src/render.mjs';
-import { designGrid } from '../src/design.mjs';
+import { designGrid, searchSheet } from '../src/design.mjs';
 import { renderScenes } from '../src/scenes.mjs';
+import { fetchIcons } from '../src/source.mjs';
 import { TOOLS, PROMPTS, listedTools } from '../src/tools.mjs';
 import { text, at, compose } from '../src/draw.mjs';
 
@@ -49,6 +50,8 @@ function schemaType(p) {
   if (p.type === 'object') return p.properties ? `{ ${Object.entries(p.properties).map(([k, v]) => `${k}: ${schemaType(v)}`).join(', ')} }` : 'object';
   return p.type ?? 'any';
 }
+// Tool text is plain text: a literal <svg> must not become an element.
+const mdText = (s) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 function toolsMarkdown() {
   const listed = new Map(listedTools(true).map((t) => [t.name, t]));
   const groups = [...new Set(TOOLS.map((t) => t.group))];
@@ -60,7 +63,17 @@ iconwright's MCP server has ${TOOLS.length} tools. The design tools work on any 
 
 Every tool rejects arguments it doesn't know, so a typo is an error instead of being silently ignored. Read-only tools are marked so clients can run them without asking.
 
-**Style strings.** Tools that style an icon take one \`style\` argument: space-separated \`key=value\` pairs. Keys: \`color\` (recolors the artwork), \`bg\` (a CSS color or \`linear-gradient(135deg,#a,#b)\`), \`shape\` (\`none\`, \`square\`, \`rounded\`, \`squircle\`, \`circle\`), \`radius\` (0–0.5), \`padding\` (0–0.45), \`shadow\` and \`cutout\` (removes the artwork's own background tile, keeping the foreground). Example: \`color=white bg=#2d5ba6 shape=squircle shadow\`.
+**Style strings.** Tools that style an icon take one \`style\` argument: space-separated \`key=value\` pairs, such as \`color=white bg=#2d5ba6 shape=squircle shadow\`.
+
+| Key | Values |
+| --- | --- |
+| \`color\` | Any CSS color. Recolors the artwork. |
+| \`bg\` | A CSS color or \`linear-gradient(135deg,#a,#b)\` |
+| \`shape\` | \`none\`, \`square\`, \`rounded\`, \`squircle\` or \`circle\` |
+| \`radius\` | 0 to 0.5 |
+| \`padding\` | 0 to 0.45 |
+| \`shadow\` | On or off |
+| \`cutout\` | Removes the artwork's own background tile, keeping the foreground |
 
 `;
   for (const g of groups) {
@@ -69,12 +82,12 @@ Every tool rejects arguments it doesn't know, so a typo is an error instead of b
       const l = listed.get(t.name);
       const a = l.annotations ?? {};
       const kind = a.readOnlyHint ? 'Read-only' : a.destructiveHint === false ? 'Writes files only' : t.annotations === undefined ? '' : (a.idempotentHint ? 'Changes the PC' : 'Changes the PC; restarts Explorer');
-      md += `### \`${t.name}\`\n\n${t.description}\n\n${kind}${t.windows ? '. Windows only.' : '.'}\n\n`;
+      md += `### \`${t.name}\`\n\n${mdText(t.description)}\n\n${kind}${t.windows ? '. Windows only.' : '.'}\n\n`;
       const props = Object.entries(l.inputSchema.properties ?? {});
       if (props.length) {
         md += '| Argument | Type | Description |\n| --- | --- | --- |\n';
         const req = new Set(l.inputSchema.required ?? []);
-        for (const [k, p] of props) md += `| \`${k}\`${req.has(k) ? ' (required)' : ''} | ${schemaType(p)} | ${(p.description ?? '').replace(/\|/g, '\\|')} |\n`;
+        for (const [k, p] of props) md += `| \`${k}\`${req.has(k) ? ' (required)' : ''} | ${schemaType(p)} | ${mdText(p.description ?? '').replace(/\|/g, '\\|')} |\n`;
         md += '\n';
       } else md += 'No arguments.\n\n';
     }
@@ -98,11 +111,16 @@ function markdown(toc) {
   md.use({
     walkTokens(token) { if (token.type === 'link' || token.type === 'image') token.href = rewriteHref(token.href); },
     renderer: {
+      // Escapes like marked's default (existing entities stay), and marks short code as unbreakable.
+      codespan({ text: t }) {
+        const h = t.replace(/&(?!#?\w+;)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return `<code${t.length <= 24 ? ' class="nw"' : ''}>${h}</code>`;
+      },
       heading({ tokens, depth }) {
         const html = this.parser.parseInline(tokens), id = slug(html);
         if (depth === 1) return '';
         if (depth === 2 || depth === 3) toc.push([id, html.replace(/<[^>]+>/g, ''), depth]);
-        const anchor = depth > 1 && depth < 4 ? `<a class="anchor" href="#${id}" aria-label="Link to this section">#</a>` : '';
+        const anchor = depth > 1 && depth < 4 ? `<a class="anchor" href="#${id}" aria-label="Link to this section" tabindex="-1">#</a>` : '';
         return `<h${depth} id="${id}">${html}${anchor}</h${depth}>\n`;
       },
     },
@@ -114,8 +132,10 @@ const ICON = {
   search: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   menu: '<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   github: '<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>',
-  theme: '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  theme: '<svg class="moon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16.5 12.2A7 7 0 0 1 7.8 3.5a7 7 0 1 0 8.7 8.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><svg class="sun" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="10" cy="10" r="3.4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7l1.3 1.3M14 14l1.3 1.3M4.7 15.3L6 14M14 6l1.3-1.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
   copy: '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M7 3h8a2 2 0 0 1 2 2v8M5 7h8v10H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+  check: '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  close: '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   chevron: '<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><path d="M6 8l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
@@ -126,8 +146,8 @@ const head = (title, description, mdPath) => `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
-<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#16181b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121210" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -145,7 +165,7 @@ const head = (title, description, mdPath) => `<!doctype html>
 <script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;650;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/site.css">
 </head>`;
 
@@ -196,6 +216,7 @@ function docPage({ name, title, description, body, toc }) {
 ${siteHeader(name === 'agents' ? 'agents' : 'docs', { menu: true })}
 <div class="docs">
   <aside class="side" id="side" aria-label="Docs">
+    <div class="side-head"><span><img src="/icon.svg" alt="" width="22" height="22">Docs</span><button class="icon-btn" type="button" data-close-menu aria-label="Close the docs menu">${ICON.close}</button></div>
     <nav>
 ${side}
     </nav>
@@ -210,8 +231,8 @@ ${side}
         <details class="more"><summary class="btn sm" aria-label="More ways to read this page">${ICON.chevron}</summary>
           <div class="menu">
             <a href="/docs/${name}.md"><b>View as Markdown</b><span>Plain text, for agents</span></a>
-            <a href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener"><b>Open in Claude</b><span>Ask questions about this page</span></a>
-            <a href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener"><b>Open in ChatGPT</b><span>Ask questions about this page</span></a>
+            <a href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener"><b>Ask Claude</b><span>Opens Claude with this page</span></a>
+            <a href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener"><b>Ask ChatGPT</b><span>Opens ChatGPT with this page</span></a>
           </div>
         </details>
       </div>
@@ -244,7 +265,7 @@ const callouts = (html) => html.replace(/<blockquote>\s*<p><strong>(Note|Tip|Imp
 
 // Search index: one entry per h2/h3 section of every page.
 function searchEntries(name, title, html) {
-  const strip = (h) => h.replace(/<pre[\s\S]*?<\/pre>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+  const strip = (h) => h.replace(/<pre[\s\S]*?<\/pre>/g, ' ').replace(/<\/?(code|strong|em|a|b|i)\b[^>]*>/g, '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
   return html.split(/(?=<h[23] id=")/).map((part) => {
     const m = /^<h[23] id="([^"]+)">([\s\S]*?)<a class="anchor"/.exec(part);
     const rest = m ? part.slice(part.indexOf('</h') + 5) : part;
@@ -257,7 +278,7 @@ async function brandAssets() {
   const master = await renderMaster({ source: MARK, padding: 0 });
   await cp(MARK, path.join(dist, 'icon.svg'));
   await writeFile(path.join(dist, 'favicon.ico'), await pngToIco(await Promise.all([48, 32, 16].map((s) => resizePng(master, s)))));
-  await writeFile(path.join(dist, 'apple-touch-icon.png'), await sharp(await resizePng(master, 180)).flatten({ background: '#edeff2' }).png().toBuffer());
+  await writeFile(path.join(dist, 'apple-touch-icon.png'), await sharp(await resizePng(master, 180)).flatten({ background: '#f7f6f3' }).png().toBuffer());
   await writeFile(path.join(dist, 'icon-512.png'), await resizePng(master, 512));
   // Specimen: the mark at 16 px, magnified 32x with a pixel grid.
   const tiny = await resizePng(master, 16);
@@ -268,53 +289,64 @@ async function brandAssets() {
   for (const s of [16, 24, 32, 48]) await writeFile(path.join(dist, 'img', `mark-${s}.png`), await resizePng(master, s));
 }
 
-// Home page showcase: real requests, each rendered as the taskbar after the agent's change.
-const SHOWCASE = [
-  { id: 'white', tab: 'All white', ask: 'Make all my taskbar icons white.',
+// Home page demo: one terminal session, one taskbar. Each request is rendered as the taskbar
+// after the agent's change; the last one is undo, so the loop starts again where it began.
+const DEMO = [
+  { id: 'white', tab: 'White', ask: 'Make all my taskbar icons white.',
     call: ['app_apply_icon(apps: [all pinned], source: "app", style: "color=white")', 'app_apply_icon(apps: ["Steam"], source: "simple-icons:steam", style: "color=white")'],
-    did: 'Each icon is redrawn in white from its own artwork. Steam’s icon is a solid badge that would turn into a white disc, so the agent used Steam’s logo for that one.',
+    did: 'All six redrawn in white. Steam’s badge would turn into a white disc, so it uses Steam’s logo.',
     render: () => ({ look: { color: 'white' } }) },
-  { id: 'tiles', tab: 'Mac-style tiles', ask: 'Put every icon on a white rounded tile, like a Mac.',
+  { id: 'tiles', tab: 'Tiles', ask: 'Keep the original colors, on white rounded tiles instead.',
     call: 'app_apply_icon(apps: [all pinned], source: "app", style: "bg=white shape=squircle")', did: 'Original colors, each on the same smooth-cornered tile.',
     render: () => ({ look: { bg: '#ffffff', shape: 'squircle', padding: 0.2 } }) },
-  { id: 'tint', tab: 'Match the wallpaper', ask: 'Tint them to match my wallpaper.',
+  { id: 'tint', tab: 'Tint', ask: 'No tiles. Tint them to match my wallpaper.',
     call: ['app_apply_icon(apps: [all pinned], source: "app", style: "color=#7cc0ff")', 'app_apply_icon(apps: ["Steam"], source: "simple-icons:steam", style: "color=#7cc0ff")'],
-    did: 'One color picked from the wallpaper, applied to every app (Steam from its logo, as above).',
+    did: 'One color picked from the wallpaper, applied to every app.',
     render: () => ({ look: { color: '#7cc0ff' } }) },
-  { id: 'order', tab: 'Reorder', ask: 'Move Spotify next to Steam.',
-    call: 'taskbar_pins(order: ["Steam", "Spotify"], position: 2)', did: 'Pins are rearranged in one Explorer restart. Nothing else changes.',
-    render: () => ({ order: ['explorer', 'edge', 'spotify', 'vscode', 'discord'] }) },
-  { id: 'custom', tab: 'A new icon', ask: 'Steam needs a new icon. Something with a rocket.',
-    call: 'search_icons → design_icons → preview_icon → app_apply_icon(apps: ["Steam"])', did: 'Designed, previewed on your taskbar, then applied when you picked it.',
-    render: (rocket) => ({ me: rocket }) },
+  { id: 'before', tab: 'Undo', ask: 'Put it all back how it was.',
+    call: 'restore_icons(all: true)', did: 'Every icon is back to its original.' },
 ];
+const BEFORE_ALT = 'A Windows 11 taskbar with File Explorer, Edge, Steam, VS Code, Spotify and Discord in their usual colors';
 
-const taskbarPicture = (name, alt, lazy = true) => `<picture><source media="(max-width: 640px)" srcset="/img/taskbar-${name}-sm.png" width="600" height="164"><img src="/img/taskbar-${name}.png" width="1760" height="164" alt="${esc(alt)}"${lazy ? ' loading="lazy"' : ''}></picture>`;
+// The taskbar alone (no wallpaper strip); phones get the crop of just the app icons.
+const barPicture = (name, alt, on) => `<picture${on ? ' class="on"' : ''}><source media="(max-width: 640px)" srcset="/img/taskbar-${name}-bar-sm.png" width="600" height="96"><img src="/img/taskbar-${name}-bar.png" width="1760" height="96" alt="${esc(alt)}"${on ? '' : ' aria-hidden="true"'}></picture>`;
 
-function showcaseHtml() {
-  const tabs = SHOWCASE.map((d, i) => `<button type="button" role="tab" id="ask-${d.id}" aria-controls="show-${d.id}" aria-selected="${i === 0}"${i ? ' tabindex="-1"' : ''}>${esc(d.tab)}</button>`).join('');
-  const panels = SHOWCASE.map((d, i) => `<div class="show-panel" role="tabpanel" id="show-${d.id}" aria-labelledby="ask-${d.id}"${i ? ' hidden' : ''}>
-      <p class="bubble you">${esc(d.ask)}</p>
-      ${[d.call].flat().map((c) => `<p class="bubble call"><code>${esc(c)}</code></p>`).join('')}
-      <figure class="bar after"><figcaption>After</figcaption>${taskbarPicture(d.id, `The same taskbar after: ${d.ask}`, i > 0)}</figure>
-      <p class="did">${esc(d.did)}</p>
-    </div>`).join('\n    ');
-  return `<div class="show-tabs" role="tablist" aria-label="Example requests">${tabs}</div>
-    <figure class="bar before"><figcaption>Before</figcaption>${taskbarPicture('before', 'A Windows 11 taskbar with File Explorer, Edge, Steam, VS Code, Spotify and Discord in their usual colors', false)}</figure>
-    ${panels}`;
+const callHtml = (c) => `<span class="full">${esc(c)}</span><span class="short">${esc(c.replace(/\(.*$/, '(…)'))}</span>`;
+const logLines = (d) => `<div class="turn"><p class="ask">${esc(d.ask)}</p>${[d.call].flat().map((c) => `<p class="call">${callHtml(c)}</p>`).join('')}<p class="did">${esc(d.did)}</p></div>`;
+
+function demoHtml() {
+  const tabs = DEMO.map((d, i) => `<button type="button" role="tab" id="ask-${d.id}" aria-controls="desk" aria-selected="${i === 0}"${i ? ' tabindex="-1"' : ''}>${esc(d.tab)}<i aria-hidden="true"></i></button>`).join('');
+  const bars = DEMO.map((d, i) => barPicture(d.id, d.id === 'before' ? BEFORE_ALT : `The taskbar after: ${d.ask}`, i === 0)).join('');
+  const steps = JSON.stringify(DEMO.map((d) => ({ ask: d.ask, call: [d.call].flat(), did: d.did }))).replace(/</g, '\u003c');
+  return `<div class="desk" id="desk" role="tabpanel" aria-labelledby="ask-${DEMO[0].id}">
+    <div class="desk-in">
+      <div class="term">
+        <div class="term-bar" aria-hidden="true"><span class="term-tab"><svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 4l4 4-4 4M8 12h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Terminal</span>
+          <span class="term-ctl"><i><svg viewBox="0 0 10 10"><path d="M0 5h10"/></svg></i><i><svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9"/></svg></i><i><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></i></span></div>
+        <div class="log"><div class="log-in">${logLines(DEMO[0])}</div></div>
+      </div>
+    </div>
+    <div class="bar">${bars}</div>
+  </div>
+  <div class="wrap demo-controls">
+    <div class="chips" role="tablist" aria-label="Requests">${tabs}</div>
+    <button class="icon-btn play" type="button" aria-label="Pause the demo" hidden><svg class="when-playing" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M7 4.5v11M13 4.5v11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><svg class="when-paused" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M6.5 4.6v10.8a.6.6 0 0 0 .9.5l8.6-5.4a.6.6 0 0 0 0-1L7.4 4.1a.6.6 0 0 0-.9.5z" fill="currentColor"/></svg></button>
+    <p class="fine">Every taskbar here is rendered by iconwright.</p>
+  </div>
+  <script type="application/json" id="demo-steps">${steps}</script>`;
 }
 
-const GALLERY = [
-  ['start', 'Start menu', 'Pinned and Recommended, at 32 px'],
-  ['ios', 'iPhone', 'Apple’s rounded mask, with labels'],
-  ['dock', 'macOS Dock', 'With the name tooltip'],
-  ['android', 'Android', 'Pixel launcher, round mask'],
-  ['explorer', 'File Explorer', 'Light theme, list and tiles'],
-  ['browser', 'Browser tab', 'As a favicon at 16 px'],
-  ['desktop', 'Desktop', 'Selected, and as a large icon'],
+const SCENES = [
+  ['start', 'Start', 'dark'], ['dock', 'Dock'], ['ios', 'iPhone'], ['android', 'Android'],
+  ['explorer', 'Explorer', 'light'], ['browser', 'Browser', 'dark'], ['desktop', 'Desktop'],
 ];
 const SCENE_SIZE = {};
-const galleryHtml = () => GALLERY.map(([s, t, sub]) => `<figure class="shot shot-${s}"><img src="/img/scene-${s}.webp" width="${SCENE_SIZE[s]?.width ?? ''}" height="${SCENE_SIZE[s]?.height ?? ''}" alt="The Launcher icon in a ${esc(t)} mockup" loading="lazy" decoding="async"><figcaption><b>${t}</b>${sub}</figcaption></figure>`).join('\n      ');
+function scenesHtml() {
+  const tabs = SCENES.map(([s, t], i) => `<button type="button" role="tab" id="scene-${s}" aria-controls="scenes" aria-selected="${i === 0}"${i ? ' tabindex="-1"' : ''}>${t}</button>`).join('');
+  const imgs = SCENES.map(([s, t], i) => `<img src="/img/scene-${s}.webp" width="${SCENE_SIZE[s]?.width ?? ''}" height="${SCENE_SIZE[s]?.height ?? ''}" alt="The rocket icon in a ${esc(t)} mockup" decoding="async"${i ? ' loading="lazy" aria-hidden="true"' : ' class="on"'}>`).join('');
+  return `<div class="scene-tabs" role="tablist" aria-label="Mockups">${tabs}</div>
+        <figure class="scenes" id="scenes" role="tabpanel" aria-labelledby="scene-${SCENES[0][0]}">${imgs}</figure>`;
+}
 
 // Social card (1200x630): the name, the promise and the taskbar before and after, inside 72 px margins
 // so chat apps that crop the edges still show everything.
@@ -323,13 +355,10 @@ let ogVersion = '1';
 async function socialCard() {
   const W = 1200, H = 630, M = 72;
   const master = await renderMaster({ source: MARK, padding: 0 });
-  const bg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs>
-    <radialGradient id="a" cx="0.15" cy="0.1" r="0.7"><stop offset="0" stop-color="#7b3f92" stop-opacity="0.35"/><stop offset="1" stop-color="#7b3f92" stop-opacity="0"/></radialGradient>
-    <radialGradient id="b" cx="0.95" cy="0.2" r="0.6"><stop offset="0" stop-color="#2d5ba6" stop-opacity="0.4"/><stop offset="1" stop-color="#2d5ba6" stop-opacity="0"/></radialGradient></defs>
-    <rect width="${W}" height="${H}" fill="#15171a"/><rect width="${W}" height="${H}" fill="url(#a)"/><rect width="${W}" height="${H}" fill="url(#b)"/></svg>`;
-  const name = await text('iconwright', { size: 40, weight: 600, color: '#e8eaed' });
+  const bg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#121210"/></svg>`;
+  const name = await text('iconwright', { size: 40, weight: 600, color: '#edebe6' });
   const line1 = await text('Restyle your taskbar', { size: 72, weight: 600, color: '#ffffff' });
-  const line2 = await text('by asking your agent.', { size: 72, weight: 600, color: '#c9a8f0' });
+  const line2 = await text('by asking your agent.', { size: 72, weight: 600, color: '#e49a62' });
   const layers = [
     { input: Buffer.from(bg), left: 0, top: 0 },
     { input: await resizePng(master, 60), left: M, top: M },
@@ -345,7 +374,7 @@ async function socialCard() {
     const img = await sharp(file).resize(bw, bh).composite([{ input: round, blend: 'dest-in' }]).png().toBuffer().catch(() => null);
     if (!img) continue;
     layers.push({ input: img, left: x, top: y });
-    const t = await text(label, { size: 20, weight: 600, color: '#9aa1ab' });
+    const t = await text(label, { size: 20, weight: 600, color: '#9a968c' });
     layers.push(at(t, x, y - 34));
   }
   const card = await compose(W, H, layers);
@@ -366,26 +395,47 @@ async function demoImages() {
     const nb = (file) => path.join(root, 'assets', 'neighbors', `${file}.svg`);
     const APP = { explorer: ['File Explorer', 'file-explorer'], edge: ['Microsoft Edge', 'edge'], vscode: ['Visual Studio Code', 'vscode'], spotify: ['Spotify', 'spotify'], discord: ['Discord', 'discord'] };
     const ORDER = ['explorer', 'edge', 'vscode', 'spotify', 'discord'];
-    const ROCKET = { source: 'ph:rocket-launch-fill', color: 'white', bg: 'linear-gradient(135deg,#7b3f92,#2d5ba6)', shape: 'squircle' };
+    // The design picked from the grid below (cell B2), so the page tells one story.
+    const ROCKET = { source: 'mdi:rocket-launch-outline', color: 'white', bg: '#2d5ba6', shape: 'squircle' };
     const taskbar = async (name, { look = {}, order = ORDER, me } = {}) => {
       const master = await renderMaster(me ?? { source: nb(look.color ? 'steam-glyph' : 'steam'), padding: 0, ...look });
       const png = await renderScenes({ master, label: 'Steam', scenes: ['taskbar'], theme: 'dark', scale: 2, bare: true,
         neighbors: order.map((k) => ({ name: APP[k][0], source: nb(APP[k][1]), ...look })) });
       await writeFile(path.join(dist, 'img', `taskbar-${name}.png`), png);
       // The apps sit between x 419 and 719 of the 880 px bar.
-      await writeFile(path.join(dist, 'img', `taskbar-${name}-sm.png`), await sharp(png).extract({ left: 838, top: 0, width: 600, height: 164 }).png().toBuffer());
+      const sm = await sharp(png).extract({ left: 838, top: 0, width: 600, height: 164 }).png().toBuffer();
+      await writeFile(path.join(dist, 'img', `taskbar-${name}-sm.png`), sm);
+      // The bar alone, without the strip of wallpaper above it (the bar starts at y 68).
+      await writeFile(path.join(dist, 'img', `taskbar-${name}-bar.png`), await sharp(png).extract({ left: 0, top: 68, width: 1760, height: 96 }).png().toBuffer());
+      await writeFile(path.join(dist, 'img', `taskbar-${name}-bar-sm.png`), await sharp(sm).extract({ left: 0, top: 68, width: 600, height: 96 }).png().toBuffer());
     };
     await taskbar('before');
-    for (const d of SHOWCASE) await taskbar(d.id, d.render(ROCKET));
+    for (const d of DEMO.filter((x) => x.render)) await taskbar(d.id, d.render());
+    await taskbar('custom', { me: ROCKET });
     // Custom icons: one design in every scene.
     const master = await renderMaster(ROCKET);
-    for (const [scene, theme] of [['start', 'dark'], ['ios'], ['dock'], ['android'], ['explorer', 'light'], ['browser', 'dark'], ['desktop']]) {
+    for (const s of [16, 24, 32, 48]) await writeFile(path.join(dist, 'img', `rocket-${s}.png`), await resizePng(master, s * 2));
+    for (const [scene, , theme] of SCENES) {
       const png = await renderScenes({ master, label: 'Launcher', scenes: [scene], theme, scale: 2, bare: true });
       await writeFile(path.join(dist, 'img', `scene-${scene}.webp`), await sharp(png).webp({ quality: 88 }).toBuffer());
       SCENE_SIZE[scene] = await sharp(png).metadata();
     }
     const rockets = ['ph:rocket-launch-fill', 'mdi:rocket-launch-outline', 'tabler:rocket'];
-    const styles = ['color=#25282d', 'color=white bg=#2d5ba6 shape=squircle', 'color=white bg=linear-gradient(135deg,#e9c46a,#c47335) shape=rounded shadow', 'color=#e9c46a bg=#1f2228 shape=circle'].map(parseStyle);
+    const styles = ['color=#1b1a17 bg=#f7f6f3 shape=squircle', 'color=white bg=#2d5ba6 shape=squircle', 'color=white bg=linear-gradient(135deg,#e9c46a,#c47335) shape=rounded shadow', 'color=#e9c46a bg=#1f2228 shape=circle'].map(parseStyle);
+    const found = ['ph:rocket-launch-fill', 'ph:rocket', 'mdi:rocket-launch-outline', 'mdi:rocket-outline', 'tabler:rocket', 'lucide:rocket', 'ri:rocket-2-line', 'ri:rocket-fill', 'fa6-solid:rocket', 'carbon:rocket', 'iconoir:rocket', 'mingcute:rocket-line', 'solar:rocket-bold', 'heroicons:rocket-launch', 'bi:rocket-takeoff', 'fluent:rocket-24-regular'];
+    await save('sheet', (await searchSheet(found, { columns: 4 })).png, 'Sixteen rocket icons from different open-source sets, numbered 1 to 16');
+    // The home page draws both results in HTML: the same layout as the tool's images, sharp at any
+    // pixel density and in the page's theme. The PNGs stay for the README and the docs.
+    const svgs = await fetchIcons(found);
+    out.sheetHtml = `<div class="sheet" role="img" aria-label="Sixteen rocket icons from different open-source sets, numbered 1 to 16">${found.filter((id) => svgs.get(id)).map((id, i) => `<span>${cleanSvg(svgs.get(id))}<b>${i + 1}</b></span>`).join('')}</div>`;
+    const cells = [];
+    for (const [r, source] of rockets.entries()) for (const [c, style] of styles.entries()) {
+      const m = await renderMaster({ source, ...style }), cell = `${'ABC'[r]}${c + 1}`;
+      await writeFile(path.join(dist, 'img', `cell-${cell}.png`), await resizePng(m, 128));
+      await writeFile(path.join(dist, 'img', `cell-${cell}-sm.png`), await resizePng(m, 48));
+      cells.push(`<span class="cell"><b>${cell}</b><img src="/img/cell-${cell}.png" width="64" height="64" alt=""><span class="strip"><i><img src="/img/cell-${cell}-sm.png" width="24" height="24" alt=""></i><i><img src="/img/cell-${cell}-sm.png" width="24" height="24" alt=""></i></span></span>`);
+    }
+    out.gridHtml = `<div class="dgrid" role="img" aria-label="Three rocket icons in four styles, cells A1 to C4, each large and at 24 px on a dark and a light strip">${cells.join('')}</div>`;
     await save('grid', (await designGrid({ sources: rockets, styles })).png, 'A grid of three rocket icons in four styles, labeled A1 to C4');
   } catch (e) {
     console.warn(`demo images skipped (${e.message}); the page shows text instead`);
@@ -393,14 +443,15 @@ async function demoImages() {
   return out;
 }
 
-const FORMATS_HTML = `<table class="matrix"><tbody>
-<tr><th scope="row">Windows</th><td><code>.ico</code> with 16, 24, 32, 48, 64, 128 and 256 px</td></tr>
-<tr><th scope="row">macOS</th><td><code>.icns</code> from 16 to 1024 px, including Retina sizes</td></tr>
-<tr><th scope="row">Web</th><td><code>favicon.ico</code>, Apple touch icon, 192 and 512 px app icons, a maskable icon, <code>site.webmanifest</code> and the <code>&lt;link&gt;</code> tags</td></tr>
-<tr><th scope="row">Anything else</th><td>PNGs at every size from 16 to 1024 px</td></tr>
-</tbody></table>`;
-
-const sizesHtml = () => [16, 24, 32, 48].map((s) => `<span><img src="/img/mark-${s}.png" width="${s}" height="${s}" alt="">${s}</span>`).join('');
+const SIZES_HTML = `<div class="sizes" aria-label="The design at 16, 24, 32 and 48 px">${[16, 24, 32, 48].map((s) => `<span><img src="/img/rocket-${s}.png" width="${s}" height="${s}" alt="">${s}</span>`).join('')}</div>`;
+// Inline Iconify SVG: drop anything that could run, keep the drawing (it inherits the text color).
+const cleanSvg = (svg) => svg.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '').replace(/\son\w+="[^"]*"/gi, '').replace(/<svg\b/, '<svg aria-hidden="true" focusable="false"');
+const FORMATS_HTML = `<ul class="formats">
+<li><b>Windows</b><span><code>.ico</code> with 16 to 256 px</span></li>
+<li><b>macOS</b><span><code>.icns</code> from 16 to 1024 px, Retina included</span></li>
+<li><b>Web</b><span>Favicon, Apple touch icon, app icons, a maskable icon and the <code>&lt;link&gt;</code> tags</span></li>
+<li><b>Anything</b><span>PNGs at every size from 16 to 1024 px</span></li>
+</ul>`;
 
 // ---------- llms.txt ----------
 function llmsTxt(pages) {
@@ -451,7 +502,8 @@ Docs: ${SITE}/llms.txt
 await rm(dist, { recursive: true, force: true });
 await mkdir(path.join(dist, 'docs'), { recursive: true });
 await mkdir(path.join(dist, 'img'), { recursive: true });
-for (const f of ['site.css', 'site.js']) await cp(path.join(here, 'src', f), path.join(dist, f));
+await cp(path.join(here, 'src', 'site.js'), path.join(dist, 'site.js'));
+await writeFile(path.join(dist, 'site.css'), (await readFile(path.join(here, 'src', 'tokens.css'), 'utf8')) + '\n' + await readFile(path.join(here, 'src', 'site.css'), 'utf8'));
 await cp(path.join(root, 'studio'), path.join(dist, 'studio'), { recursive: true });
 // The studio draws in the browser with the engine's own recipes and sample app icons.
 await cp(path.join(root, 'src', 'shared'), path.join(dist, 'studio', 'shared'), { recursive: true });
@@ -488,9 +540,8 @@ home = home.replace('{{header}}', siteHeader('')).replace('{{footer}}', siteFoot
   .replace('{{head}}', head('iconwright: restyle your Windows taskbar and desktop with your agent', 'An MCP server that lets your AI agent change app icons, pin and reorder taskbar apps and arrange the desktop, with undo, and design custom icons previewed on a real taskbar, desktop and phone.', '/index.md'))
   .replaceAll('{{repo}}', REPO).replaceAll('{{site}}', SITE).replaceAll('{{version}}', version)
   .replace('{{agentPrompt}}', esc(AGENT_PROMPT))
-  .replace('{{sizes:dark}}', sizesHtml('dark')).replace('{{sizes:light}}', sizesHtml('light'))
-  .replace('{{img:formats}}', FORMATS_HTML)
-  .replaceAll('{{icon:copy}}', ICON.copy).replace('{{showcase}}', showcaseHtml()).replace('{{gallery}}', galleryHtml())
+  .replace('{{img:formats}}', FORMATS_HTML).replace('{{img:sizes}}', SIZES_HTML)
+  .replaceAll('{{icon:copy}}', `<span class="ico">${ICON.copy}${ICON.check}</span>`).replace('{{demo}}', demoHtml()).replace('{{scenes}}', scenesHtml())
   .replace(/\{\{img:(\w+)\}\}/g, (_, n) => images[n] ?? '<p>Image unavailable in this build.</p>');
 await writeFile(path.join(dist, 'index.html'), home);
 await writeFile(path.join(dist, 'index.md'), HOME_MD);

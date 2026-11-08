@@ -10,6 +10,10 @@ iconwright lets your AI agent restyle your Windows taskbar and desktop: change a
 
 ## Install
 
+### Let your agent do it
+
+Copy the [setup prompt](agents.md#setup-prompt) and paste it to your agent. It installs iconwright, reads the usage guide and checks your PC.
+
 ### Claude Code
 
 Run these two commands inside Claude Code:
@@ -54,10 +58,6 @@ Add a **stdio** server to your client's MCP settings, then restart or reconnect 
   }
 }
 ```
-
-### Let your agent do it
-
-Copy the [setup prompt](agents.md#setup-prompt) and paste it to your agent. It installs iconwright, reads the usage guide and checks your PC.
 
 ## Your first icon
 

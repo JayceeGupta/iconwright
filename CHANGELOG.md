@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **New website and logo.** The home page shows a live demo: requests typed into a terminal and the taskbar each one produces, ending in undo. The docs share the new look. The logo is now a bronze tile grid with one tile being restyled; the studio uses it too.
+- **Fix:** the MCP tool reference dropped text in angle brackets (`raw <svg>`, `"app:<name>"`) and showed empty table rows in their place.
 - The Claude Code plugin marketplace is now named `iconwright`, so the plugin installs as `iconwright@iconwright`. If you installed it before, run `/plugin marketplace remove icon-playground`, then `/plugin marketplace add JayceeGupta/iconwright` and `/plugin install iconwright@iconwright`.
 
 ## 0.4.0 (2026-10-31)
