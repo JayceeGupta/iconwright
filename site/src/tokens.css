@@ -1,0 +1,102 @@
+/* iconwright design tokens. Warm paper, graphite ink, one bronze accent taken from the mark.
+   Everything on the site is built from these; no one-off values in components. */
+:root {
+  /* color: light */
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --sunk: #efede8;
+  --sunk-2: #e7e4dd;
+  --rule: #e2dfd8;
+  --rule-strong: #cdc9bf;
+  --ink: #1b1a17;
+  --ink-2: #46443e;
+  --muted: #6b6860;
+  --accent: #a4521d;
+  --accent-ink: #84400f;
+  --accent-wash: #f6e9de;
+  --on-ink: #f7f6f3;
+  --code-bg: #ebe8e1;
+  --pre-bg: #1d1c19;
+  --pre-ink: #e9e7e1;
+  --pre-muted: #9b978d;
+  --desk: #14274a;
+  --bar: #1a1d23;
+  --mat: #ecebe6;  /* light ground for tool output, same in both themes */
+  --header-bg: rgb(247 246 243 / 0.88);
+  --raised: #ffffff;
+  --note: var(--accent); --tip: #2f7a4f; --warn: #95620f; --danger: #b3412f;
+  --outline-img: oklch(0 0 0 / 0.1);
+  --ring: 0 0 0 1px rgb(27 26 23 / 0.08);
+  --shadow-1: 0 0 0 1px rgb(27 26 23 / 0.07), 0 1px 2px rgb(27 26 23 / 0.06);
+  --shadow-2: 0 0 0 1px rgb(27 26 23 / 0.07), 0 2px 4px rgb(27 26 23 / 0.05), 0 12px 24px -8px rgb(27 26 23 / 0.12);
+  --shadow-3: 0 0 0 1px rgb(27 26 23 / 0.08), 0 8px 16px -4px rgb(27 26 23 / 0.1), 0 32px 64px -16px rgb(27 26 23 / 0.24);
+
+  /* type */
+  --sans: Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --display: "Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  --t-xs: 12.5px;  /* labels, captions */
+  --t-sm: 14px;    /* secondary text */
+  --t-md: 16px;    /* body */
+  --t-lg: 18px;    /* lede, intro */
+  --t-xl: 22px;    /* h3 */
+  --t-2xl: 30px;   /* h2 (docs) */
+  --t-3xl: clamp(32px, 4.2vw, 48px);  /* section titles */
+  --t-4xl: clamp(42px, 6.2vw, 88px);    /* hero */
+  --lh-tight: 1.04;
+  --lh-head: 1.15;
+  --lh-body: 1.6;
+  --measure: 68ch;
+
+  /* space: 4px base */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
+  --s-7: 48px; --s-8: 64px; --s-9: 96px; --s-10: 128px;
+  --gutter: 24px;
+  --page: 1200px;
+
+  /* radius (outer = inner + padding) */
+  --r-1: 6px; --r-2: 10px; --r-3: 14px; --r-4: 20px; --r-pill: 999px;
+
+  /* motion (Emil Kowalski's curves) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --d-press: 120ms;
+  --d-fast: 160ms;
+  --d-base: 220ms;
+  --d-show: 360ms;   /* marketing demo only */
+
+  /* layers */
+  --z-sticky: 10; --z-menu: 20; --z-drawer: 30; --z-overlay: 40;
+
+  --header-h: 60px;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #121210; --surface: #1b1a17; --sunk: #201f1c; --sunk-2: #292825; --rule: #2c2a26; --rule-strong: #3d3b36;
+  --ink: #edebe6; --ink-2: #c9c6be; --muted: #9a968c;
+  --accent: #e49a62; --accent-ink: #f0b487; --accent-wash: #2e2219; --on-ink: #121210;
+  --code-bg: #26241f; --pre-bg: #0c0c0b; --header-bg: rgb(18 18 16 / 0.86);
+  --raised: #34322d; --note: var(--accent); --tip: #6cc795; --warn: #e3b25d; --danger: #f08a77;
+  --outline-img: oklch(1 0 0 / 0.1);
+  --ring: 0 0 0 1px rgb(255 255 255 / 0.07);
+  --shadow-1: 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 24px -8px rgb(0 0 0 / 0.5);
+  --shadow-3: 0 0 0 1px rgb(255 255 255 / 0.09), 0 8px 16px -4px rgb(0 0 0 / 0.4), 0 32px 64px -16px rgb(0 0 0 / 0.7);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121210; --surface: #1b1a17; --sunk: #201f1c; --sunk-2: #292825; --rule: #2c2a26; --rule-strong: #3d3b36;
+    --ink: #edebe6; --ink-2: #c9c6be; --muted: #9a968c;
+    --accent: #e49a62; --accent-ink: #f0b487; --accent-wash: #2e2219; --on-ink: #121210;
+    --code-bg: #26241f; --pre-bg: #0c0c0b; --header-bg: rgb(18 18 16 / 0.86);
+    --raised: #34322d; --note: var(--accent); --tip: #6cc795; --warn: #e3b25d; --danger: #f08a77;
+    --outline-img: oklch(1 0 0 / 0.1);
+    --ring: 0 0 0 1px rgb(255 255 255 / 0.07);
+    --shadow-1: 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 24px -8px rgb(0 0 0 / 0.5);
+    --shadow-3: 0 0 0 1px rgb(255 255 255 / 0.09), 0 8px 16px -4px rgb(0 0 0 / 0.4), 0 32px 64px -16px rgb(0 0 0 / 0.7);
+    color-scheme: dark;
+  }
+}
+@media (max-width: 900px) { :root { --gutter: 16px; --header-h: 56px; } }

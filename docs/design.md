@@ -10,6 +10,8 @@ You can do all of this by asking your agent, from the [studio](studio.md), or wi
 
 iconwright searches [Iconify](https://iconify.design): more than 200,000 open-source icons from about 200 sets, including brand logos. You get one sheet with numbered pictures, so you can answer “3, 7 and 12” (`search_icons`).
 
+![A numbered sheet of sixteen rocket icons from different sets](https://iconwright.guptajayam.com/img/sheet.png)
+
 - Brand logos live in the `simple-icons` set: `simple-icons:spotify`, `simple-icons:github`.
 - To stay within one look, ask for a set: “only from Phosphor” (`ph`), “Material Design” (`mdi`), “Lucide” (`lucide`), “Tabler” (`tabler`).
 - Licenses are listed with every search. Most sets are MIT, Apache 2.0 or similar; a few ask for attribution (CC BY).
@@ -21,6 +23,8 @@ You can also start from your own artwork: an `.svg`, `.png`, `.jpg`, `.webp` or 
 > Try 3, 7 and 12 in white, on a blue squircle, and with an orange gradient.
 
 You get one grid: artwork in rows (A, B, C) and styles in columns (1, 2, 3). Every cell shows the icon large and at 24 px on a dark and a light strip, because a design that works at 256 px can fail at taskbar size. Answer with a cell: “B2” (`design_icons`).
+
+![A grid of three rocket icons in four styles, cells labeled A1 to C4](https://iconwright.guptajayam.com/img/grid.png)
 
 Keep rounds small and change one thing at a time: a color, then a shape, then padding.
 

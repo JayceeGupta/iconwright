@@ -7,8 +7,7 @@ This page is for AI agents that use iconwright, and for people setting one up. I
 Paste this to any agent with a terminal (Claude Code, Codex, Cursor and others):
 
 ```text
-Set up iconwright for me (https://iconwright.guptajayam.com). It's an MCP server
-for designing icons and customizing the Windows taskbar and desktop.
+Set up iconwright for me (https://iconwright.guptajayam.com). It's an MCP server for designing icons and customizing the Windows taskbar and desktop.
 
 1. If you are Claude Code, run:
      /plugin marketplace add JayceeGupta/iconwright
