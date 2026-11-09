@@ -42,6 +42,60 @@ function OffscreenCanvasOr(w, h) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
 }
 
+// ---------- Iconify, batched ----------
+// One request per icon set instead of one per icon (Iconify rate-limits per-icon requests):
+// ids asked for in the same moment are grouped, fetched as JSON and built into SVG here.
+const svgCache = new Map();
+let pending = null;
+const ICONIFY = 'https://api.iconify.design';
+function buildSvg(set, data) {
+  const w = data.width ?? set.width ?? 16, h = data.height ?? set.height ?? 16;
+  const l = data.left ?? set.left ?? 0, t = data.top ?? set.top ?? 0;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${l} ${t} ${w} ${h}">${data.body}</svg>`;
+}
+async function fetchBatch(ids) {
+  const byPrefix = new Map();
+  for (const id of ids) { const [p, n] = id.split(':'); if (!byPrefix.has(p)) byPrefix.set(p, []); byPrefix.get(p).push(n); }
+  const found = new Map();
+  await Promise.all([...byPrefix].map(async ([prefix, names]) => {
+    // Batches stay under ~450 characters of names, like Iconify's own client.
+    const chunks = [[]];
+    for (const n of names) { if (chunks.at(-1).join(',').length + n.length > 450) chunks.push([]); chunks.at(-1).push(n); }
+    for (const chunk of chunks) {
+      const res = await fetch(`${ICONIFY}/${encodeURIComponent(prefix)}.json?icons=${chunk.map(encodeURIComponent).join(',')}`);
+      if (!res.ok) throw new Error(res.status === 429 ? 'The icon library is busy (too many requests). Wait a minute and try again.' : 'Failed to fetch');
+      const set = await res.json();
+      for (const name of chunk) {
+        let data = set.icons?.[name];
+        const alias = set.aliases?.[name];
+        if (!data && alias && !alias.rotate && !alias.hFlip && !alias.vFlip && set.icons?.[alias.parent]) data = { ...set.icons[alias.parent], ...alias };
+        if (data?.body) found.set(`${prefix}:${name}`, buildSvg(set, data));
+      }
+    }
+  }));
+  // Rare leftovers (aliases with transforms) come from the single-icon endpoint.
+  await Promise.all(ids.filter((id) => !found.has(id)).map(async (id) => {
+    const [p, n] = id.split(':');
+    const res = await fetch(`${ICONIFY}/${encodeURIComponent(p)}/${encodeURIComponent(n)}.svg`).catch(() => null);
+    const text = res?.ok ? await res.text() : '';
+    if (text.startsWith('<svg')) found.set(id, text);
+  }));
+  return found;
+}
+/** An Iconify icon's SVG (null if it doesn't exist). Calls made together share one request per set. */
+export function iconifySvg(id) {
+  if (svgCache.has(id)) return svgCache.get(id);
+  if (!pending) {
+    const batch = pending = { ids: new Set() };
+    batch.done = new Promise((ok) => setTimeout(ok, 30)).then(() => { pending = null; return fetchBatch([...batch.ids]); });
+  }
+  pending.ids.add(id);
+  const p = pending.done.then((m) => m.get(id) ?? null);
+  svgCache.set(id, p);
+  p.catch(() => svgCache.delete(id));
+  return p;
+}
+
 const artCache = new Map();
 /**
  * Load artwork for a source: an Iconify id, raw SVG, or (local studio) app:<name> or a file path.
@@ -57,9 +111,8 @@ export function loadArt(source, api, { cutout = false } = {}) {
     if (s.startsWith('<')) return measureSvg(s);
     const m = /^([a-z0-9-]+):([a-z0-9-]+)$/i.exec(s);
     if (m && !/^app:/i.test(s)) {
-      const res = await fetch(`https://api.iconify.design/${m[1]}/${m[2]}.svg`);
-      const text = res.ok ? await res.text() : '';
-      if (!text.startsWith('<svg')) throw new Error(`No icon called "${s}".`);
+      const text = await iconifySvg(`${m[1]}:${m[2]}`);
+      if (!text) throw new Error(`No icon called "${s}".`);
       return measureSvg(text);
     }
     return api('art', { source: s });   // local: app icons and files, measured by the server

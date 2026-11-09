@@ -4,6 +4,7 @@
 
 - **The studio has the new look, with dark mode.** It follows your system theme (or the theme you picked on the website), opens on a finished design instead of a plain glyph, shows search results in the page's text color, and says plainly when the icon library can't be reached. An empty search offers suggestions.
 - **New website and logo.** The home page shows a live demo: requests typed into a terminal and the taskbar each one produces, ending in undo. The docs share the new look. The logo is now a bronze tile grid with one tile being restyled; the studio uses it too.
+- **Fix:** the studio fetched every search result from Iconify separately, so a busy network could hit Iconify's rate limit and show blank results and failing Shuffle. It now fetches one request per icon set, and says so when Iconify is busy.
 - **Fix:** the MCP tool reference dropped text in angle brackets (`raw <svg>`, `"app:<name>"`) and showed empty table rows in their place.
 - The Claude Code plugin marketplace is now named `iconwright`, so the plugin installs as `iconwright@iconwright`. If you installed it before, run `/plugin marketplace remove icon-playground`, then `/plugin marketplace add JayceeGupta/iconwright` and `/plugin install iconwright@iconwright`.
 
