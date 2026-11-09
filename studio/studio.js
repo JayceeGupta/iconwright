@@ -53,7 +53,11 @@ async function api(op, data = {}, { as = 'json', post = false } = {}) {
 
 // ---------- messages ----------
 let toastTimer = 0;
+// Network failures read as what happened, not as "Failed to fetch".
+const friendly = (msg) => (/Failed to fetch|NetworkError|Load failed/i.test(msg) ? "Couldn’t reach the icon library. Check your connection and try again." : msg);
+const inkColor = () => getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#1b1a17';
 function status(msg = '', error = false) {
+  msg = friendly(msg);
   const t = $('status');
   clearTimeout(toastTimer);
   t.textContent = msg; t.classList.toggle('error', error); t.classList.toggle('show', !!msg);
@@ -256,18 +260,29 @@ async function setSource(source, { record = true, label } = {}) {
   $('sourceName').textContent = isRaw(source) ? 'Your SVG' : source.replace(/^app:/, '');
   $('sourceName').title = isRaw(source) ? '' : source;
   for (const b of document.querySelectorAll('#results button')) b.setAttribute('aria-selected', String(b.dataset.id === source));
+  rove($('results'));
   $('canvas').classList.add('busy');
   try {
     const loaded = await loadArt(source, api);
     if (state.source !== source) return;
     art = loaded;
+    actionsReady();
+    $('sourceName').parentElement.hidden = false;
     $('empty').hidden = true;
     if (record) commit(); else saveHash();
     await draw();
     drawIdeas();
   } catch (e) {
-    status(e.message, true);
-    if (!art) { $('emptyText').textContent = 'Pick an icon to start.'; $('empty').querySelector('.spinner').hidden = true; }
+    // With nothing loaded yet, the message lives on the canvas (one place), and nothing points at it.
+    if (art) status(e.message, true);
+    else {
+      $('emptyText').textContent = friendly(e.message); $('empty').querySelector('.spinner').hidden = true; $('sourceName').parentElement.hidden = true;
+      if (!$('retry')) {
+        const b = Object.assign(document.createElement('button'), { id: 'retry', type: 'button', className: 'btn', textContent: 'Try again' });
+        b.onclick = () => { b.remove(); $('empty').querySelector('.spinner').hidden = false; $('emptyText').textContent = 'Loading…'; if (lastQuery) search(lastQuery); setSource(source, { record: false }); };
+        $('empty').append(b);
+      }
+    }
   } finally { $('canvas').classList.remove('busy'); }
 }
 
@@ -277,10 +292,11 @@ const SUGGEST = ['music', 'rocket', 'terminal', 'camera', 'chat', 'cloud', 'game
 async function search(query, { more = false, pickFirst = false } = {}) {
   const seq = ++searchSeq;
   if (!query) {
-    $('results').replaceChildren(); $('searchNote').textContent = ''; $('more').hidden = true; $('suggest').hidden = false; lastQuery = '';
+    $('results').replaceChildren(); $('searchNote').textContent = ''; $('more').hidden = true; $('palette').after($('suggest')); $('suggest').hidden = false; lastQuery = '';
     return;
   }
   $('suggest').hidden = true;
+  $('palette').after($('suggest'));
   const start = more ? searchStart : 0;
   lastQuery = query;
   $('searchNote').textContent = 'Searching…'; $('more').disabled = true;
@@ -290,13 +306,35 @@ async function search(query, { more = false, pickFirst = false } = {}) {
     if (!more) $('results').replaceChildren();
     searchStart = start + r.icons.length;
     for (const id of r.icons) $('results').append(resultButton(id));
+    if (!more && r.icons.length && /^[\w-]+:[\w-]+$/.test(state.source) && !/^app:/.test(state.source) && !r.icons.includes(state.source)) $('results').prepend(resultButton(state.source));
+    rove($('results'));
     const licenses = [...new Set(Object.values(r.collections ?? {}).map((c) => c.license).filter(Boolean))];
-    $('searchNote').textContent = searchStart ? `${searchStart} shown${r.total > searchStart ? ` of ${r.total}` : ''}.${licenses.length ? ` Licenses: ${licenses.join(', ')}.` : ''}` : `Nothing found for “${query}”. Try a simpler word.`;
+    $('searchNote').textContent = searchStart ? `${searchStart} shown${r.total > searchStart ? ` of ${r.total}` : ''}.${licenses.length ? ` Licenses: ${licenses.join(', ')}.` : ''}` : `Nothing found for “${query}”. Try a simpler word, or one of these:`;
+    // An empty result offers the suggestions as the next step.
+    if (!searchStart) { $('searchNote').after($('suggest')); $('suggest').hidden = false; }
     $('more').hidden = searchStart >= r.total || !r.icons.length;
     if (pickFirst && r.icons.length) setSource(r.icons[0]);
   } catch (e) {
-    if (seq === searchSeq) $('searchNote').textContent = `Search failed: ${e.message}`;
+    if (seq === searchSeq) $('searchNote').textContent = art ? `Search failed. ${friendly(e.message)}` : 'Search needs the icon library; see the preview.';
   } finally { if (seq === searchSeq) $('more').disabled = false; }
+}
+// One Tab stop for the whole grid (the selected icon, or the first); arrow keys move inside it.
+function rove(list) {
+  const items = [...list.querySelectorAll('button')];
+  const current = items.find((b) => b.getAttribute('aria-selected') === 'true') ?? items[0];
+  for (const b of items) b.tabIndex = b === current ? 0 : -1;
+}
+function gridKeys(list) {
+  list.addEventListener('keydown', (e) => {
+    const items = [...list.querySelectorAll('button')], i = items.indexOf(document.activeElement);
+    if (i < 0) return;
+    const cols = Math.max(1, Math.round(list.clientWidth / items[0].offsetWidth));
+    const to = { ArrowRight: i + 1, ArrowLeft: i - 1, ArrowDown: i + cols, ArrowUp: i - cols, Home: 0, End: items.length - 1 }[e.key];
+    if (to === undefined || !items[to]) return;
+    e.preventDefault();
+    for (const b of items) b.tabIndex = -1;
+    items[to].tabIndex = 0; items[to].focus();
+  });
 }
 function resultButton(id) {
   const b = document.createElement('button');
@@ -304,8 +342,12 @@ function resultButton(id) {
   b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(id === state.source));
   const [p, n] = id.split(':');
   const img = document.createElement('img');
-  img.alt = id; img.loading = 'lazy'; img.width = 26; img.height = 26;
-  img.src = `https://api.iconify.design/${encodeURIComponent(p)}/${encodeURIComponent(n)}.svg`;
+  // The button carries the name; a failed load leaves a quiet gap instead of a broken-image glyph.
+  b.setAttribute('aria-label', id);
+  img.alt = ''; img.loading = 'lazy'; img.width = 26; img.height = 26;
+  img.onerror = () => b.classList.add('broken');
+  // One-color icons are drawn in the page's ink color, so they read in dark mode; multicolor icons ignore it.
+  img.src = `https://api.iconify.design/${encodeURIComponent(p)}/${encodeURIComponent(n)}.svg?color=${encodeURIComponent(inkColor())}`;
   b.append(img);
   b.onclick = () => setSource(id);
   return b;
@@ -362,22 +404,39 @@ async function drawIdeas() {
   if (!state.source) return;
   const source = state.source, styles = ideaStyles();
   const box = $('ideas');
-  box.replaceChildren(...styles.map((style) => {
+  box.replaceChildren(...styles.map((style, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.setAttribute('role', 'listitem'); b.title = formatStyle(style) || 'Original';
-    b.setAttribute('aria-label', `Use the style ${b.title}`);
+    b.setAttribute('aria-label', `Idea ${i + 1}: ${describeStyle(style)}`);
     const img = document.createElement('img'); img.alt = '';
     b.append(img);
     b.onclick = () => { state.style = { ...style }; syncControls(); schedule(); commit(); };
     thumb(source, style).then((url) => { img.src = url; }).catch(() => b.remove());
     return b;
   }));
+  rove(box);
+}
+// Color names for screen readers: near-white, near-black, gray, or the hue family.
+function colorName(c) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(c).trim()); if (!m) return String(c);
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  if (d < 0.08) return l > 0.85 ? 'white' : l < 0.15 ? 'black' : 'gray';
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4; h = (h * 60 + 360) % 360;
+  const name = h < 15 ? 'red' : h < 45 ? 'orange' : h < 70 ? 'yellow' : h < 160 ? 'green' : h < 195 ? 'teal' : h < 255 ? 'blue' : h < 290 ? 'purple' : h < 335 ? 'pink' : 'red';
+  return (l > 0.75 ? 'light ' : l < 0.25 ? 'dark ' : '') + name;
+}
+// A style in words, for screen readers: "white artwork on #2d5ba6, squircle tile".
+function describeStyle(s) {
+  const bg = s.bg ? (String(s.bg).startsWith('linear') ? 'a gradient' : s.bg) : '';
+  return [s.color && `${colorName(s.color)} artwork`, bg && `on ${bg.startsWith('a ') ? bg : colorName(bg)}`, s.shape && s.shape !== 'none' && bg && `${s.shape} tile`].filter(Boolean).join(', ') || 'original colors';
 }
 const KEPT = 'iconwright.kept';
 function drawKept() {
   const list = store.get(KEPT, []);
   const box = $('kept');
-  if (!list.length) { box.innerHTML = '<p class="note">Keep versions to compare them and go back.</p>'; return; }
+  $('keep').parentElement.classList.toggle('is-empty', !list.length);
+  if (!list.length) { box.replaceChildren(); return; }
   box.replaceChildren(...list.map((k, i) => {
     const item = document.createElement('div');
     item.className = 'kept-item'; item.setAttribute('role', 'listitem');
@@ -521,7 +580,29 @@ async function applyToApps() {
 
 // ---------- wiring ----------
 function wireRadio(group, fn) { for (const b of group.children) b.addEventListener('click', () => fn(b.dataset.v ?? b.dataset.bg, b)); }
+function actionsReady() {
+  for (const id of ['keep', 'shuffle', 'copyAgent', 'downloadOpen', 'applyOpen']) $(id).disabled = !art;
+  document.querySelector('.stage').classList.toggle('no-art', !art);
+}
+function segKeys(group) {
+  const items = () => [...group.querySelectorAll('button:not([hidden])')];
+  const sync = () => { const all = items(); const on = all.find((b) => b.getAttribute('aria-checked') === 'true' || b.getAttribute('aria-selected') === 'true') ?? all[0]; for (const b of all) b.tabIndex = b === on ? 0 : -1; };
+  group.addEventListener('keydown', (e) => {
+    const all = items(), i = all.indexOf(document.activeElement);
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (i < 0 || !step) return;
+    e.preventDefault();
+    const next = all[(i + step + all.length) % all.length];
+    next.click(); next.focus(); sync();
+  });
+  group.addEventListener('click', () => setTimeout(sync));
+  sync();
+}
 function wire() {
+  for (const g of document.querySelectorAll('.seg')) segKeys(g);
+  actionsReady();
+  gridKeys($('results'));
+  gridKeys($('ideas'));
   // Artwork tabs
   for (const t of $('sourceTabs').children) t.onclick = () => {
     for (const o of $('sourceTabs').children) o.setAttribute('aria-selected', String(o === t));
@@ -669,8 +750,13 @@ async function init() {
     await setSource(source, { record: false });
     committed = snap();
   } else {
+    // A finished design to start from (the one picked on the home page), with its search alongside.
+    state.style = parseStyle('color=white bg=#2d5ba6 shape=squircle');
+    syncControls();
     $('query').value = 'rocket';
-    await search('rocket', { pickFirst: true });
+    search('rocket');
+    await setSource('mdi:rocket-launch-outline', { record: false });
+    committed = snap();
   }
 }
 init();
