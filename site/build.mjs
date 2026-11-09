@@ -38,6 +38,8 @@ const DOCS = NAV.flatMap(([, items]) => items);
 // The setup prompt lives in docs/agents.md (one source for GitHub, the docs and the home page).
 const AGENT_PROMPT = /## Setup prompt[\s\S]*?```text\r?\n([\s\S]*?)\r?\n```/.exec(await readFile(path.join(root, 'docs', 'agents.md'), 'utf8'))[1];
 
+// Heading text arrives escaped; the table of contents escapes it again, so decode it first.
+const unescapeHtml = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const slug = (t) => t.toLowerCase().replace(/<[^>]+>/g, '').replace(/&#?\w+;/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
 
@@ -69,7 +71,7 @@ Every tool rejects arguments it doesn't know, so a typo is an error instead of b
 | --- | --- |
 | \`color\` | Any CSS color. Recolors the artwork. |
 | \`bg\` | A CSS color or \`linear-gradient(135deg,#a,#b)\` |
-| \`shape\` | \`none\`, \`square\`, \`rounded\`, \`squircle\` or \`circle\` |
+| \`shape\` | \`none\` · \`square\` · \`rounded\` · \`squircle\` · \`circle\` |
 | \`radius\` | 0 to 0.5 |
 | \`padding\` | 0 to 0.45 |
 | \`shadow\` | On or off |
@@ -82,7 +84,9 @@ Every tool rejects arguments it doesn't know, so a typo is an error instead of b
       const l = listed.get(t.name);
       const a = l.annotations ?? {};
       const kind = a.readOnlyHint ? 'Read-only' : a.destructiveHint === false ? 'Writes files only' : t.annotations === undefined ? '' : (a.idempotentHint ? 'Changes the PC' : 'Changes the PC; restarts Explorer');
-      md += `### \`${t.name}\`\n\n${mdText(t.description)}\n\n${kind}${t.windows ? '. Windows only.' : '.'}\n\n`;
+      const tags = [kind, t.windows && 'Windows only'].filter(Boolean);
+      const tagKind = (k) => (k === 'Read-only' ? 'ro' : k === 'Windows only' ? 'win' : k.startsWith('Changes') ? 'pc' : 'files');
+      md += `### \`${t.name}\`\n\n${tags.length ? `<p class="tool-meta">${tags.map((k) => `<span class="${tagKind(k)}">${k}</span>`).join(' · ')}</p>\n\n` : ''}${mdText(t.description)}\n\n`;
       const props = Object.entries(l.inputSchema.properties ?? {});
       if (props.length) {
         md += '| Argument | Type | Description |\n| --- | --- | --- |\n';
@@ -119,7 +123,7 @@ function markdown(toc) {
       heading({ tokens, depth }) {
         const html = this.parser.parseInline(tokens), id = slug(html);
         if (depth === 1) return '';
-        if (depth === 2 || depth === 3) toc.push([id, html.replace(/<[^>]+>/g, ''), depth]);
+        if (depth === 2 || depth === 3) toc.push([id, unescapeHtml(html.replace(/<[^>]+>/g, '')), depth]);
         const anchor = depth > 1 && depth < 4 ? `<a class="anchor" href="#${id}" aria-label="Link to this section" tabindex="-1">#</a>` : '';
         return `<h${depth} id="${id}">${html}${anchor}</h${depth}>\n`;
       },
@@ -201,13 +205,22 @@ const siteFooter = () => `<footer class="foot">
   </div>
 </footer>`;
 
-function docPage({ name, title, description, body, toc }) {
+// The MCP tools a page mentions in code, in order, linked to the reference (not on the reference itself).
+function pageTools(name, source) {
+  if (name === 'tools' || name === 'changelog') return '';
+  const names = new Set(TOOLS.map((t) => t.name));
+  const found = [...new Set([...source.matchAll(/`([a-z_]+)(?:\(|`)/g)].map((m) => m[1]).filter((n) => names.has(n)))].slice(0, 8);
+  return found.length ? `<div class="page-tools"><p class="toc-title">Tools on this page</p>${found.map((n) => `<a href="/docs/tools#${n}"><code>${n}</code></a>`).join('')}</div>` : '';
+}
+
+function docPage({ name, title, description, body, toc, source = '' }) {
   const group = NAV.find(([, items]) => items.some(([n]) => n === name))?.[0] ?? 'Docs';
   const i = DOCS.findIndex(([n]) => n === name);
   const prev = DOCS[i - 1], next = DOCS[i + 1];
   const side = NAV.map(([g, items]) => `<div class="side-group"><h2>${g}</h2>\n${items.map(([n, label]) => `<a href="/docs/${n}"${n === name ? ' aria-current="page"' : ''}>${label}</a>`).join('\n')}</div>`).join('\n');
   const tocLinks = toc.map(([id, t, depth]) => `<a href="#${id}"${depth === 3 ? ' class="sub"' : ''}>${esc(t)}</a>`).join('\n');
-  const tocHtml = toc.length > 1 ? `<p class="toc-title">On this page</p>\n${tocLinks}` : '';
+  const tools = pageTools(name, source);
+  const tocHtml = (toc.length > 1 ? `<p class="toc-title">On this page</p>\n${tocLinks}` : '') + tools;
   const mobileToc = toc.length > 1 ? `<details class="toc-mobile"><summary>On this page ${ICON.chevron}</summary><nav aria-label="On this page">${tocLinks}</nav></details>` : '';
   const q = encodeURIComponent(`Read ${SITE}/docs/${name}.md so I can ask you questions about it.`);
   return `${head(`${title} | iconwright docs`, description, `/docs/${name}.md`)}
@@ -217,6 +230,7 @@ ${siteHeader(name === 'agents' ? 'agents' : 'docs', { menu: true })}
 <div class="docs">
   <aside class="side" id="side" aria-label="Docs">
     <div class="side-head"><span><img src="/icon.svg" alt="" width="22" height="22">Docs</span><button class="icon-btn" type="button" data-close-menu aria-label="Close the docs menu">${ICON.close}</button></div>
+    <p class="side-links"><a href="/">Home</a><a href="/studio/">Studio</a><a href="${REPO}">GitHub</a></p>
     <nav>
 ${side}
     </nav>
@@ -225,14 +239,14 @@ ${side}
   <main class="prose" id="content">
     <div class="page-head">
       <p class="crumbs">${group}</p>
-      <h1>${title}</h1>
+      <h1>${PAGE_ICON_OK.has(name) ? `<img class="page-icon" src="/img/page-${name}.png" width="48" height="48" alt="">` : ''}${title}</h1>
       <div class="page-actions">
         <button class="btn sm" type="button" data-copy-md="/docs/${name}.md">${ICON.copy}<span>Copy page</span></button>
         <details class="more"><summary class="btn sm" aria-label="More ways to read this page">${ICON.chevron}</summary>
           <div class="menu">
             <a href="/docs/${name}.md"><b>View as Markdown</b><span>Plain text, for agents</span></a>
-            <a href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener"><b>Ask Claude</b><span>Opens Claude with this page</span></a>
-            <a href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener"><b>Ask ChatGPT</b><span>Opens ChatGPT with this page</span></a>
+            <a href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener"><b>Ask Claude ↗</b><span>Opens Claude with this page</span></a>
+            <a href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener"><b>Ask ChatGPT ↗</b><span>Opens ChatGPT with this page</span></a>
           </div>
         </details>
       </div>
@@ -242,8 +256,8 @@ ${side}
 ${body}
     </div>
     <nav class="pager" aria-label="Previous and next page">
-      ${prev ? `<a class="prev" href="/docs/${prev[0]}"><span>Previous</span>${prev[1]}</a>` : '<span></span>'}
-      ${next ? `<a class="next" href="/docs/${next[0]}"><span>Next</span>${next[1]}</a>` : '<span></span>'}
+      ${prev ? `<a class="prev" href="/docs/${prev[0]}"><span>← Previous</span>${prev[1]}</a>` : '<span></span>'}
+      ${next ? `<a class="next" href="/docs/${next[0]}"><span>Next →</span>${next[1]}</a>` : '<span></span>'}
     </nav>
     <p class="edit"><a href="${REPO}/blob/main/${name === 'changelog' ? 'CHANGELOG.md' : `docs/${name}.md`}">Edit this page on GitHub</a></p>
   </main>
@@ -265,7 +279,7 @@ const callouts = (html) => html.replace(/<blockquote>\s*<p><strong>(Note|Tip|Imp
 
 // Search index: one entry per h2/h3 section of every page.
 function searchEntries(name, title, html) {
-  const strip = (h) => h.replace(/<pre[\s\S]*?<\/pre>/g, ' ').replace(/<\/?(code|strong|em|a|b|i)\b[^>]*>/g, '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+  const strip = (h) => h.replace(/<pre[\s\S]*?<\/pre>/g, ' ').replace(/<figure class="tool-out">[\s\S]*?<\/figure>/g, ' ').replace(/<p class="tool-meta">[\s\S]*?<\/p>/g, ' ').replace(/<\/?(code|strong|em|a|b|i)\b[^>]*>/g, '').replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
   return html.split(/(?=<h[23] id=")/).map((part) => {
     const m = /^<h[23] id="([^"]+)">([\s\S]*?)<a class="anchor"/.exec(part);
     const rest = m ? part.slice(part.indexOf('</h') + 5) : part;
@@ -299,10 +313,10 @@ const DEMO = [
   { id: 'tiles', tab: 'Tiles', ask: 'Keep the original colors, on white rounded tiles instead.',
     call: 'app_apply_icon(apps: [all pinned], source: "app", style: "bg=white shape=squircle")', did: 'Original colors, each on the same smooth-cornered tile.',
     render: () => ({ look: { bg: '#ffffff', shape: 'squircle', padding: 0.2 } }) },
-  { id: 'tint', tab: 'Tint', ask: 'No tiles. Tint them to match my wallpaper.',
-    call: ['app_apply_icon(apps: [all pinned], source: "app", style: "color=#7cc0ff")', 'app_apply_icon(apps: ["Steam"], source: "simple-icons:steam", style: "color=#7cc0ff")'],
-    did: 'One color picked from the wallpaper, applied to every app.',
-    render: () => ({ look: { color: '#7cc0ff' } }) },
+  { id: 'tint', tab: 'Tint', ask: 'No tiles. Tint them in my Windows accent color.',
+    call: ['app_apply_icon(apps: [all pinned], source: "app", style: "color=#ffb454")', 'app_apply_icon(apps: ["Steam"], source: "simple-icons:steam", style: "color=#ffb454")'],
+    did: 'Your accent color, applied to every app.',
+    render: () => ({ look: { color: '#ffb454' } }) },
   { id: 'before', tab: 'Undo', ask: 'Put it all back how it was.',
     call: 'restore_icons(all: true)', did: 'Every icon is back to its original.' },
 ];
@@ -330,8 +344,7 @@ function demoHtml() {
   </div>
   <div class="wrap demo-controls">
     <div class="chips" role="tablist" aria-label="Requests">${tabs}</div>
-    <button class="icon-btn play" type="button" aria-label="Pause the demo" hidden><svg class="when-playing" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M7 4.5v11M13 4.5v11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><svg class="when-paused" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M6.5 4.6v10.8a.6.6 0 0 0 .9.5l8.6-5.4a.6.6 0 0 0 0-1L7.4 4.1a.6.6 0 0 0-.9.5z" fill="currentColor"/></svg></button>
-    <p class="fine">Every taskbar here is rendered by iconwright.</p>
+    <button class="play" type="button" aria-label="Pause the demo" hidden><svg class="when-playing" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M7 4.5v11M13 4.5v11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><svg class="when-paused" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M6.5 4.6v10.8a.6.6 0 0 0 .9.5l8.6-5.4a.6.6 0 0 0 0-1L7.4 4.1a.6.6 0 0 0-.9.5z" fill="currentColor"/></svg><span class="play-label">Pause</span></button>
   </div>
   <script type="application/json" id="demo-steps">${steps}</script>`;
 }
@@ -341,6 +354,23 @@ const SCENES = [
   ['explorer', 'Explorer', 'light'], ['browser', 'Browser', 'dark'], ['desktop', 'Desktop'],
 ];
 const SCENE_SIZE = {};
+// One icon per docs page, drawn by iconwright: white Phosphor glyphs on the bronze tile of the mark.
+const PAGE_ICONS = {
+  'getting-started': 'ph:play-circle', agents: 'ph:robot', design: 'ph:paint-brush', studio: 'ph:sliders-horizontal',
+  taskbar: 'ph:push-pin', desktop: 'ph:desktop', tools: 'ph:wrench', cli: 'ph:terminal-window',
+  safety: 'ph:shield-check', compatibility: 'ph:check-circle', 'how-it-works': 'ph:gear-six',
+  'windows-internals': 'ph:cpu', changelog: 'ph:clock-counter-clockwise', contributing: 'ph:hand-heart',
+};
+const PAGE_ICON_OK = new Set();
+async function pageIcons() {
+  for (const [name, source] of Object.entries(PAGE_ICONS)) {
+    try {
+      const m = await renderMaster({ source, color: 'white', bg: '#B4561F', shape: 'squircle' });
+      await writeFile(path.join(dist, 'img', `page-${name}.png`), await resizePng(m, 96));
+      PAGE_ICON_OK.add(name);
+    } catch (e) { console.warn(`page icon ${name} skipped (${e.message})`); }
+  }
+}
 function scenesHtml() {
   const tabs = SCENES.map(([s, t], i) => `<button type="button" role="tab" id="scene-${s}" aria-controls="scenes" aria-selected="${i === 0}"${i ? ' tabindex="-1"' : ''}>${t}</button>`).join('');
   const imgs = SCENES.map(([s, t], i) => `<img src="/img/scene-${s}.webp" width="${SCENE_SIZE[s]?.width ?? ''}" height="${SCENE_SIZE[s]?.height ?? ''}" alt="The rocket icon in a ${esc(t)} mockup" decoding="async"${i ? ' loading="lazy" aria-hidden="true"' : ' class="on"'}>`).join('');
@@ -503,13 +533,14 @@ await rm(dist, { recursive: true, force: true });
 await mkdir(path.join(dist, 'docs'), { recursive: true });
 await mkdir(path.join(dist, 'img'), { recursive: true });
 await cp(path.join(here, 'src', 'site.js'), path.join(dist, 'site.js'));
-await writeFile(path.join(dist, 'site.css'), (await readFile(path.join(here, 'src', 'tokens.css'), 'utf8')) + '\n' + await readFile(path.join(here, 'src', 'site.css'), 'utf8'));
+await writeFile(path.join(dist, 'site.css'), (await readFile(path.join(root, 'studio', 'tokens.css'), 'utf8')) + '\n' + await readFile(path.join(here, 'src', 'site.css'), 'utf8'));
 await cp(path.join(root, 'studio'), path.join(dist, 'studio'), { recursive: true });
 // The studio draws in the browser with the engine's own recipes and sample app icons.
 await cp(path.join(root, 'src', 'shared'), path.join(dist, 'studio', 'shared'), { recursive: true });
 await cp(path.join(root, 'assets', 'neighbors'), path.join(dist, 'studio', 'neighbors'), { recursive: true, filter: (f) => !f.endsWith('.md') });
 await brandAssets();
 const images = await demoImages();
+await pageIcons();
 await socialCard();
 
 // Generated docs (also written into docs/ so they read well on GitHub).
@@ -528,9 +559,11 @@ for (const [name] of DOCS) {
   const description = firstPara.replace(/[`*_]|\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 200);
   pages.set(name, { title, description, source });
   const toc = [];
-  const body = callouts(markdown(toc).parse(source.replace(/\{\{agentPrompt\}\}/g, AGENT_PROMPT)));
+  let body = callouts(markdown(toc).parse(source.replace(/\{\{agentPrompt\}\}/g, AGENT_PROMPT)));
+  // GitHub readers get the PNGs; the site shows the same results drawn in HTML.
+  for (const [file, html] of [['sheet', images.sheetHtml], ['grid', images.gridHtml]]) if (html) body = body.replace(new RegExp(`<p><img src="[^"]*/img/${file}\\.png"[^>]*></p>`), `<figure class="tool-out">${html}<figcaption>What <code>${file === 'sheet' ? 'search_icons' : 'design_icons'}</code> returns, drawn here in the page's colors.</figcaption></figure>`);
   searchIndex.push(...searchEntries(name, title, body));
-  await writeFile(path.join(dist, 'docs', `${name}.html`), docPage({ name, title, description, body, toc }));
+  await writeFile(path.join(dist, 'docs', `${name}.html`), docPage({ name, title, description, body, toc, source }));
   await writeFile(path.join(dist, 'docs', `${name}.md`), source.replace(/\{\{agentPrompt\}\}/g, AGENT_PROMPT));
 }
 await writeFile(path.join(dist, 'docs', 'index.html'), '<!doctype html><meta http-equiv="refresh" content="0; url=/docs/getting-started"><link rel="canonical" href="/docs/getting-started">');

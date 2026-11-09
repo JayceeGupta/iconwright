@@ -1,5 +1,6 @@
-/* iconwright design tokens. Warm paper, graphite ink, one bronze accent taken from the mark.
-   Everything on the site is built from these; no one-off values in components. */
+/* iconwright design tokens, shared by the website and the studio (the studio is also served on its own
+   by the local CLI, so the file lives here). Warm paper, graphite ink, one bronze accent from the mark.
+   Everything is built from these; no one-off values in components. */
 :root {
   /* color: light */
   --bg: #f7f6f3;
@@ -21,7 +22,8 @@
   --pre-muted: #9b978d;
   --desk: #14274a;
   --bar: #1a1d23;
-  --mat: #ecebe6;  /* light ground for tool output, same in both themes */
+  --mat: #ecebe6;
+  --check-a: #e7e4dd; --check-b: #f7f6f3;  /* transparency checkerboard */  /* light ground for tool output, same in both themes */
   --header-bg: rgb(247 246 243 / 0.88);
   --raised: #ffffff;
   --note: var(--accent); --tip: #2f7a4f; --warn: #95620f; --danger: #b3412f;
@@ -42,7 +44,7 @@
   --t-xl: 22px;    /* h3 */
   --t-2xl: 30px;   /* h2 (docs) */
   --t-3xl: clamp(32px, 4.2vw, 48px);  /* section titles */
-  --t-4xl: clamp(42px, 6.2vw, 88px);    /* hero */
+  --t-4xl: clamp(42px, 7.2vw, 104px);    /* hero */
   --lh-tight: 1.04;
   --lh-head: 1.15;
   --lh-body: 1.6;
@@ -76,12 +78,12 @@
   --ink: #edebe6; --ink-2: #c9c6be; --muted: #9a968c;
   --accent: #e49a62; --accent-ink: #f0b487; --accent-wash: #2e2219; --on-ink: #121210;
   --code-bg: #26241f; --pre-bg: #0c0c0b; --header-bg: rgb(18 18 16 / 0.86);
-  --raised: #34322d; --note: var(--accent); --tip: #6cc795; --warn: #e3b25d; --danger: #f08a77;
+  --raised: #34322d; --check-a: #2b2a26; --check-b: #1f1e1b; --note: var(--accent); --tip: #6cc795; --warn: #e3b25d; --danger: #f08a77;
   --outline-img: oklch(1 0 0 / 0.1);
-  --ring: 0 0 0 1px rgb(255 255 255 / 0.07);
-  --shadow-1: 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-2: 0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 24px -8px rgb(0 0 0 / 0.5);
-  --shadow-3: 0 0 0 1px rgb(255 255 255 / 0.09), 0 8px 16px -4px rgb(0 0 0 / 0.4), 0 32px 64px -16px rgb(0 0 0 / 0.7);
+  --ring: 0 0 0 1px rgb(255 255 255 / 0.11);
+  --shadow-1: 0 0 0 1px rgb(255 255 255 / 0.1), 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 0 0 1px rgb(255 255 255 / 0.12), 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 24px -8px rgb(0 0 0 / 0.5);
+  --shadow-3: 0 0 0 1px rgb(255 255 255 / 0.14), 0 8px 16px -4px rgb(0 0 0 / 0.4), 0 32px 64px -16px rgb(0 0 0 / 0.7);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -90,12 +92,12 @@
     --ink: #edebe6; --ink-2: #c9c6be; --muted: #9a968c;
     --accent: #e49a62; --accent-ink: #f0b487; --accent-wash: #2e2219; --on-ink: #121210;
     --code-bg: #26241f; --pre-bg: #0c0c0b; --header-bg: rgb(18 18 16 / 0.86);
-    --raised: #34322d; --note: var(--accent); --tip: #6cc795; --warn: #e3b25d; --danger: #f08a77;
+    --raised: #34322d; --check-a: #2b2a26; --check-b: #1f1e1b; --note: var(--accent); --tip: #6cc795; --warn: #e3b25d; --danger: #f08a77;
     --outline-img: oklch(1 0 0 / 0.1);
-    --ring: 0 0 0 1px rgb(255 255 255 / 0.07);
-    --shadow-1: 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-2: 0 0 0 1px rgb(255 255 255 / 0.08), 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 24px -8px rgb(0 0 0 / 0.5);
-    --shadow-3: 0 0 0 1px rgb(255 255 255 / 0.09), 0 8px 16px -4px rgb(0 0 0 / 0.4), 0 32px 64px -16px rgb(0 0 0 / 0.7);
+    --ring: 0 0 0 1px rgb(255 255 255 / 0.11);
+    --shadow-1: 0 0 0 1px rgb(255 255 255 / 0.1), 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 0 0 1px rgb(255 255 255 / 0.12), 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 24px -8px rgb(0 0 0 / 0.5);
+    --shadow-3: 0 0 0 1px rgb(255 255 255 / 0.14), 0 8px 16px -4px rgb(0 0 0 / 0.4), 0 32px 64px -16px rgb(0 0 0 / 0.7);
     color-scheme: dark;
   }
 }

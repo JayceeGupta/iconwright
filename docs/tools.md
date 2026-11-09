@@ -12,7 +12,7 @@ Every tool rejects arguments it doesn't know, so a typo is an error instead of b
 | --- | --- |
 | `color` | Any CSS color. Recolors the artwork. |
 | `bg` | A CSS color or `linear-gradient(135deg,#a,#b)` |
-| `shape` | `none`, `square`, `rounded`, `squircle` or `circle` |
+| `shape` | `none` · `square` · `rounded` · `squircle` · `circle` |
 | `radius` | 0 to 0.5 |
 | `padding` | 0 to 0.45 |
 | `shadow` | On or off |
@@ -22,9 +22,9 @@ Every tool rejects arguments it doesn't know, so a typo is an error instead of b
 
 ### `search_icons`
 
-Search 200,000+ open-source icons (Iconify). Returns ids and, by default, a numbered contact sheet: picture N is icons[N-1]. Brand logos: "simple-icons:&lt;brand&gt;".
+<p class="tool-meta"><span class="ro">Read-only</span></p>
 
-Read-only.
+Search 200,000+ open-source icons (Iconify). Returns ids and, by default, a numbered contact sheet: picture N is icons[N-1]. Brand logos: "simple-icons:&lt;brand&gt;".
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -37,9 +37,9 @@ Read-only.
 
 ### `design_icons`
 
-Compare options in one small image: rows A, B, … = sources, columns 1, 2, … = styles; each cell shows the icon large and at 24 px on dark and light. Pass a picked cell's (e.g. "B2") source and style to preview_icon, make_icon or app_apply_icon. Max 36 cells. Nothing is saved.
+<p class="tool-meta"><span class="ro">Read-only</span></p>
 
-Read-only.
+Compare options in one small image: rows A, B, … = sources, columns 1, 2, … = styles; each cell shows the icon large and at 24 px on dark and light. Pass a picked cell's (e.g. "B2") source and style to preview_icon, make_icon or app_apply_icon. Max 36 cells. Nothing is saved.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -48,9 +48,9 @@ Read-only.
 
 ### `preview_icon`
 
-Mock up an icon where it lives: taskbar, start, desktop, explorer, browser, dock, ios, android, sizes (sizes = true pixels). On Windows, taskbar and start show the user's own pinned apps around it. Use before applying: catches icons that vanish on light or dark. Nothing is saved.
+<p class="tool-meta"><span class="ro">Read-only</span></p>
 
-Read-only.
+Mock up an icon where it lives: taskbar, start, desktop, explorer, browser, dock, ios, android, sizes (sizes = true pixels). On Windows, taskbar and start show the user's own pinned apps around it. Use before applying: catches icons that vanish on light or dark. Nothing is saved.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -62,9 +62,9 @@ Read-only.
 
 ### `make_icon`
 
-Write icon files: ico (Windows, 16-256 px), png, icns (macOS), web (favicons, touch + PWA icons, manifest, head.html), pngset (16-1024 px). Default ico + png. Returns paths and a preview (48 and 24 px on dark and light).
+<p class="tool-meta"><span class="files">Writes files only</span></p>
 
-Writes files only.
+Write icon files: ico (Windows, 16-256 px), png, icns (macOS), web (favicons, touch + PWA icons, manifest, head.html), pngset (16-1024 px). Default ico + png. Returns paths and a preview (48 and 24 px on dark and light).
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -78,9 +78,9 @@ Writes files only.
 
 ### `open_studio`
 
-Open iconwright studio (a visual icon editor) in the user's browser, preloaded with a source and style, to fine-tune by hand. Its "Copy for agent" button gives the user the exact source and style to paste back.
+<p class="tool-meta"><span class="ro">Read-only</span></p>
 
-Read-only.
+Open iconwright studio (a visual icon editor) in the user's browser, preloaded with a source and style, to fine-tune by hand. Its "Copy for agent" button gives the user the exact source and style to paste back.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -93,9 +93,9 @@ Read-only.
 
 ### `find_apps`
 
-Find installed apps (Start menu). With query: matching names and AppIDs. With apps: details for each (AppID, Start menu and pinned shortcuts, Store app or not).
+<p class="tool-meta"><span class="ro">Read-only</span> · <span class="win">Windows only</span></p>
 
-Read-only. Windows only.
+Find installed apps (Start menu). With query: matching names and AppIDs. With apps: details for each (AppID, Start menu and pinned shortcuts, Store app or not).
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -104,9 +104,9 @@ Read-only. Windows only.
 
 ### `app_apply_icon`
 
-Put an icon on apps (Start menu + pinned shortcuts; open windows update live). Give source (source "app" restyles each app's own icon, e.g. all white; "cutout color=white" drops their tiles too) or icon (existing .ico). pin:true also pins. If the result has a hint, taskbar_refresh once after all changes. Undo: restore_icons.
+<p class="tool-meta"><span class="pc">Changes the PC</span> · <span class="win">Windows only</span></p>
 
-Changes the PC. Windows only.
+Put an icon on apps (Start menu + pinned shortcuts; open windows update live). Give source (source "app" restyles each app's own icon, e.g. all white; "cutout color=white" drops their tiles too) or icon (existing .ico). pin:true also pins. If the result has a hint, taskbar_refresh once after all changes. Undo: restore_icons.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -124,17 +124,17 @@ Changes the PC. Windows only.
 
 ### `taskbar_status`
 
-Pinned taskbar apps in order, with each one's icon file.
+<p class="tool-meta"><span class="ro">Read-only</span> · <span class="win">Windows only</span></p>
 
-Read-only. Windows only.
+Pinned taskbar apps in order, with each one's icon file.
 
 No arguments.
 
 ### `taskbar_pins`
 
-Change pinned apps in ONE Explorer restart: pin, unpin and move apps in a single call (the taskbar blinks; open File Explorer windows close). dryRun shows the resulting order without changing anything. Backed up first (undo: taskbar_restore_backup).
+<p class="tool-meta"><span class="pc">Changes the PC; restarts Explorer</span> · <span class="win">Windows only</span></p>
 
-Changes the PC; restarts Explorer. Windows only.
+Change pinned apps in ONE Explorer restart: pin, unpin and move apps in a single call (the taskbar blinks; open File Explorer windows close). dryRun shows the resulting order without changing anything. Backed up first (undo: taskbar_restore_backup).
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -149,9 +149,9 @@ Changes the PC; restarts Explorer. Windows only.
 
 ### `taskbar_refresh`
 
-Restart Explorer once so pinned icons reload. Only when a result says so; once, after all changes.
+<p class="tool-meta"><span class="pc">Changes the PC; restarts Explorer</span> · <span class="win">Windows only</span></p>
 
-Changes the PC; restarts Explorer. Windows only.
+Restart Explorer once so pinned icons reload. Only when a result says so; once, after all changes.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -159,9 +159,9 @@ Changes the PC; restarts Explorer. Windows only.
 
 ### `taskbar_restore_backup`
 
-Put the pinned-apps list back: "last" = before the latest pin change, "original" = before iconwright's first. Restarts Explorer.
+<p class="tool-meta"><span class="pc">Changes the PC; restarts Explorer</span> · <span class="win">Windows only</span></p>
 
-Changes the PC; restarts Explorer. Windows only.
+Put the pinned-apps list back: "last" = before the latest pin change, "original" = before iconwright's first. Restarts Explorer.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -171,17 +171,17 @@ Changes the PC; restarts Explorer. Windows only.
 
 ### `desktop_info`
 
-Desktop icons with positions (px), icon size, options, grid spacing, monitors and system icon visibility.
+<p class="tool-meta"><span class="ro">Read-only</span> · <span class="win">Windows only</span></p>
 
-Read-only. Windows only.
+Desktop icons with positions (px), icon size, options, grid spacing, monitors and system icon visibility.
 
 No arguments.
 
 ### `desktop_move`
 
-Move desktop icons to positions (snap to the grid). Coordinates as in desktop_info.
+<p class="tool-meta"><span class="pc">Changes the PC</span> · <span class="win">Windows only</span></p>
 
-Changes the PC. Windows only.
+Move desktop icons to positions (snap to the grid). Coordinates as in desktop_info.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -189,9 +189,9 @@ Changes the PC. Windows only.
 
 ### `desktop_arrange`
 
-Line up the icons on one monitor from a corner; other monitors stay put. Save a layout first (desktop_layout).
+<p class="tool-meta"><span class="pc">Changes the PC</span> · <span class="win">Windows only</span></p>
 
-Changes the PC. Windows only.
+Line up the icons on one monitor from a corner; other monitors stay put. Save a layout first (desktop_layout).
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -203,9 +203,9 @@ Changes the PC. Windows only.
 
 ### `desktop_settings`
 
-Icon size, auto-arrange, snap to grid, show/hide all icons, and which system icons (This PC, Recycle Bin, …) show. Only the options you give change.
+<p class="tool-meta"><span class="pc">Changes the PC</span> · <span class="win">Windows only</span></p>
 
-Changes the PC. Windows only.
+Icon size, auto-arrange, snap to grid, show/hide all icons, and which system icons (This PC, Recycle Bin, …) show. Only the options you give change.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -218,9 +218,9 @@ Changes the PC. Windows only.
 
 ### `desktop_apply_icon`
 
-Change the icon of a desktop shortcut, web link, folder or system icon (this-pc, recycle-bin, …). Give source (makes an icon; "item" restyles its own icon) or icon (existing .ico). Plain files can't have their own icon. Undo: restore_icons.
+<p class="tool-meta"><span class="pc">Changes the PC</span> · <span class="win">Windows only</span></p>
 
-Changes the PC. Windows only.
+Change the icon of a desktop shortcut, web link, folder or system icon (this-pc, recycle-bin, …). Give source (makes an icon; "item" restyles its own icon) or icon (existing .ico). Plain files can't have their own icon. Undo: restore_icons.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -234,9 +234,9 @@ Changes the PC. Windows only.
 
 ### `desktop_layout`
 
-save: icon positions, size and auto-arrange to a JSON file. load: put icons back where it had them (reports items that are gone).
+<p class="tool-meta"><span class="pc">Changes the PC</span> · <span class="win">Windows only</span></p>
 
-Changes the PC. Windows only.
+save: icon positions, size and auto-arrange to a JSON file. load: put icons back where it had them (reports items that are gone).
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -247,9 +247,9 @@ Changes the PC. Windows only.
 
 ### `restore_icons`
 
-Put original icons back: on apps, on desktop items, or all:true for everything iconwright changed (pins excepted; see taskbar_restore_backup). If needsRefresh, call taskbar_refresh once.
+<p class="tool-meta"><span class="pc">Changes the PC</span> · <span class="win">Windows only</span></p>
 
-Changes the PC. Windows only.
+Put original icons back: on apps, on desktop items, or all:true for everything iconwright changed (pins excepted; see taskbar_restore_backup). If needsRefresh, call taskbar_refresh once.
 
 | Argument | Type | Description |
 | --- | --- | --- |
@@ -259,17 +259,17 @@ Changes the PC. Windows only.
 
 ### `doctor`
 
-Read-only check that the taskbar and desktop tools can work here (Windows, PowerShell, pin list, backups, taskbar mods).
+<p class="tool-meta"><span class="ro">Read-only</span> · <span class="win">Windows only</span></p>
 
-Read-only. Windows only.
+Read-only check that the taskbar and desktop tools can work here (Windows, PowerShell, pin list, backups, taskbar mods).
 
 No arguments.
 
 ### `capture`
 
-See a change: the taskbar (default), the desktop icons (drawn even under windows; no wallpaper), or the screen. Fails while the screen is locked.
+<p class="tool-meta"><span class="ro">Read-only</span> · <span class="win">Windows only</span></p>
 
-Read-only. Windows only.
+See a change: the taskbar (default), the desktop icons (drawn even under windows; no wallpaper), or the screen. Fails while the screen is locked.
 
 | Argument | Type | Description |
 | --- | --- | --- |

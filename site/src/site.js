@@ -68,7 +68,7 @@ const demo = $('#demo');
 if (demo) {
   const steps = JSON.parse($('#demo-steps').textContent);
   const desk = $('#desk'), log = $('.log-in', demo), pics = $$('.bar picture', demo), playBtn = $('.play', demo);
-  const HOLD = 2000, TYPE = 22;
+  const HOLD = 2000, TYPE = 16;
   let cur = 0, token = 0, playing = !reduceMotion, onScreen = false;
   const chips = tablist($('.chips', demo), (i) => { setPlaying(false); sync(); cur = i; addTurn(i); showBar(i); });
 
@@ -164,6 +164,7 @@ if (demo) {
     playing = on;
     demo.classList.toggle('paused', !on);
     playBtn.setAttribute('aria-label', on ? 'Pause the demo' : 'Play the demo');
+    $('.play-label', playBtn).textContent = on ? 'Pause' : 'Play';
   }
   const sync = () => { if (playing && onScreen && !document.hidden) { if (!demo.classList.contains('running')) { demo.classList.add('running'); loop(); } } else { demo.classList.remove('running'); stop(); } };
   playBtn.hidden = false;
@@ -219,7 +220,7 @@ let index = null, selected = 0;
 const escHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function highlight(text, words) {
   let out = escHtml(text);
-  for (const w of words) out = out.replace(new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>');
+  for (const w of words) out = out.replace(new RegExp(`\\b(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>');
   return out;
 }
 function snippet(text, words) {
@@ -245,10 +246,10 @@ function runSearch() {
       if (!s) { score = 0; break; }
       score += s + (h.startsWith(w) ? 3 : 0);
     }
-    if (score) scored.push([score, e]);
+    if (score) scored.push([/^(Windows internals|How it works)$/.test(e.p) ? score * 0.4 : score, e]);
   }
   scored.sort((a, b) => b[0] - a[0]);
-  if (!scored.length) { hits.innerHTML = `<li class="none"><b>No results for “${escHtml(input.value.trim())}”</b><span>Try a shorter word, or <a href="/llms-full.txt">read every page in one file</a>.</span></li>`; dialog.classList.add('is-empty'); return; }
+  if (!scored.length) { hits.innerHTML = `<li class="none"><b>No results for “${escHtml(input.value.trim())}”</b><span>Try a shorter word, one of these, or <a href="/llms-full.txt">read every page in one file</a>.</span><span class="try">${['pin', 'undo', 'favicon'].map((q) => `<button class="btn sm" type="button" data-q="${q}">${q}</button>`).join('')}</span></li>`; dialog.classList.add('is-empty'); for (const b of $$('[data-q]', hits)) b.onclick = () => { input.value = b.dataset.q; runSearch(); input.focus(); }; return; }
   for (const [, e] of scored.slice(0, 12)) {
     const li = document.createElement('li');
     li.innerHTML = `<a href="${e.u}" role="option"><span class="where">${escHtml(e.p)}</span><b>${highlight(e.h || e.p, words)}</b><span class="snip">${highlight(snippet(e.x, words), words)}</span></a>`;
@@ -268,7 +269,7 @@ async function loadIndex() {
   catch {
     index = null;
     dialog.classList.add('is-empty');
-    hits.innerHTML = '<li class="none"><b>Search could not load</b><span>Check your connection, then try again.</span><button class="btn sm" type="button" data-retry>Try again</button></li>';
+    hits.innerHTML = '<li class="none"><b>Search could not load</b><span>Check your connection, then try again.</span><button class="btn sm primary" type="button" data-retry>Try again</button></li>';
     $('[data-retry]', hits).addEventListener('click', () => { hits.replaceChildren(); dialog.classList.remove('is-empty'); loadIndex(); input.focus(); });
   }
 }

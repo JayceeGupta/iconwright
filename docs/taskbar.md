@@ -8,7 +8,7 @@ On Windows, iconwright can change any app's icon, and pin, unpin and reorder tas
 
 iconwright makes the icon and puts it on the app's Start menu shortcut and its pinned taskbar shortcut (`app_apply_icon`). The app's own files are never touched.
 
-- **Open windows update right away.**
+- **Apps with open windows** update right away.
 - **Pinned apps that aren't running** keep their old picture until Explorer restarts. iconwright tells your agent when that's the case, and the agent can restart Explorer once at the end of all your changes (`taskbar_refresh`).
 - **Many apps at once** cost the same as one. Ask for all of them in one sentence.
 

@@ -3,21 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f7f9">
+  <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121210" media="(prefers-color-scheme: dark)">
+  <script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
   <title>Studio | iconwright</title>
   <meta name="description" content="Design an icon and see it on a Windows taskbar, Start menu, desktop, macOS Dock, iPhone and Android as you edit. Download it for Windows, macOS and the web.">
   <link rel="icon" href="mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="studio.css">
 </head>
 <body>
+  <a class="skip" href="#layout">Skip to the editor</a>
   <header class="bar">
     <a class="brand" href="/" aria-label="iconwright home"><img src="mark.svg" alt="" width="24" height="24"><span>iconwright</span></a>
     <span class="crumb" aria-hidden="true">/</span><span class="title">Studio</span>
     <span id="mode" class="mode" hidden></span>
     <div class="bar-actions">
+      <a class="help-link" href="https://iconwright.guptajayam.com/docs/studio">Docs</a>
       <div class="history" role="group" aria-label="History">
         <button id="undo" class="icon-btn" type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 5 3.5 9l4 4M4 9h8a4.5 4.5 0 0 1 0 9h-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button id="redo" class="icon-btn" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 5l4 4-4 4M16 9H8a4.5 4.5 0 0 0 0 9h2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -108,7 +113,7 @@
       <section class="panel scenes" data-pane="scenes" aria-labelledby="scenesTitle">
         <div class="panel-head">
           <h2 id="scenesTitle">Where it lives</h2>
-          <label class="inline-field"><span>App name</span><input id="label" value="My App" maxlength="40" spellcheck="false"></label>
+          <label class="inline-field"><span>App name</span><input id="label" aria-label="App name" value="My App" maxlength="40" spellcheck="false"></label>
         </div>
         <div id="sceneChips" class="chips" role="group" aria-label="Scenes to show"></div>
         <div id="gallery" class="gallery"></div>
@@ -149,7 +154,7 @@
           <div class="row">
             <input type="color" id="g1" value="#7b3f92" aria-label="Gradient start color">
             <input type="color" id="g2" value="#2d5ba6" aria-label="Gradient end color">
-            <label class="angle" title="Direction"><input type="range" id="angle" min="0" max="345" step="15" value="135" aria-label="Gradient direction"><output id="angleOut">135°</output></label>
+            <label class="angle" title="Direction"><span>Angle</span><input type="range" id="angle" min="0" max="345" step="15" value="135" aria-label="Gradient direction"><output id="angleOut">135°</output></label>
           </div>
         </div>
       </div>
@@ -196,7 +201,6 @@
       <button class="dl" type="button" data-format="png"><b>PNG</b><span>One image, 256 px</span></button>
       <button class="dl" type="button" data-format="pngset"><b>All sizes</b><span>PNGs from 16 to 1024 px (.zip)</span></button>
     </div>
-    <p class="note">Made by the same engine as the agent tools, so the files match what you see.</p>
   </dialog>
 
   <dialog id="applyDlg" class="sheet" aria-labelledby="applyTitle">
