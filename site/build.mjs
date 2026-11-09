@@ -40,6 +40,30 @@ const AGENT_PROMPT = /## Setup prompt[\s\S]*?```text\r?\n([\s\S]*?)\r?\n```/.exe
 
 // Heading text arrives escaped; the table of contents escapes it again, so decode it first.
 const unescapeHtml = (s) => s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+// Code blocks: a header with what the block is and a Copy button, then the code. Prompts (prose) wrap;
+// commands and config keep their lines and scroll sideways.
+function codeKind(text, lang) {
+  if (lang === 'bash' || lang === 'sh' || lang === 'shell') return ['Terminal', false];
+  if (lang === 'json') return ['JSON', false];
+  if (lang === 'toml') return ['TOML', false];
+  if (lang === 'markdown' || lang === 'md') return ['Markdown', true];
+  if (/[─│┐┘┌└]/.test(text)) return ['Diagram', false];
+  if (/^\/plugin\b/.test(text)) return ['Claude Code', false];
+  if (/[.?!]\s/.test(text) && text.length > 120) return ['Prompt', true];
+  if (/^[a-z]+=\S/.test(text)) return ['Style', false];
+  return ['Text', false];
+}
+const COPY_ICON = '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M7 3h8a2 2 0 0 1 2 2v8M5 7h8v10H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+const CHECK_ICON = '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+// Wrapped lines continue under their own text, one step in, instead of jumping back to the left edge.
+// Each line is a block that carries its own newline, so copying still gives the original text.
+const hanging = (text) => text.split('\n').map((l) => `<span class="ln" style="--in:${l.length - l.trimStart().length}">${esc(l)}\n</span>`).join('');
+function codeBlock(text, lang = '', { label, id } = {}) {
+  const [kind, wrap] = codeKind(text, lang);
+  const name = label ?? kind;
+  return `<div class="code${wrap ? ' wrap' : ''}"><div class="code-head"><span>${esc(name)}</span><button class="code-copy" type="button" aria-label="Copy ${esc(name.toLowerCase())}"><span class="ico">${COPY_ICON}${CHECK_ICON}</span><span>Copy</span></button></div><pre${id ? ` id="${id}"` : ''} tabindex="0"><code>${wrap ? hanging(text) : esc(text)}</code></pre></div>\n`;
+}
+
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const slug = (t) => t.toLowerCase().replace(/<[^>]+>/g, '').replace(/&#?\w+;/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
 
@@ -116,6 +140,7 @@ function markdown(toc) {
     walkTokens(token) { if (token.type === 'link' || token.type === 'image') token.href = rewriteHref(token.href); },
     renderer: {
       // Escapes like marked's default (existing entities stay), and marks short code as unbreakable.
+      code({ text, lang }) { return codeBlock(text, (lang ?? '').split(/\s/)[0]); },
       codespan({ text: t }) {
         const h = t.replace(/&(?!#?\w+;)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         return `<code${t.length <= 24 ? ' class="nw"' : ''}>${h}</code>`;
@@ -572,7 +597,7 @@ let home = await readFile(path.join(here, 'src', 'home.html'), 'utf8');
 home = home.replace('{{header}}', siteHeader('')).replace('{{footer}}', siteFooter()).replace('{{search}}', searchDialog)
   .replace('{{head}}', head('iconwright: restyle your Windows taskbar and desktop with your agent', 'An MCP server that lets your AI agent change app icons, pin and reorder taskbar apps and arrange the desktop, with undo, and design custom icons previewed on a real taskbar, desktop and phone.', '/index.md'))
   .replaceAll('{{repo}}', REPO).replaceAll('{{site}}', SITE).replaceAll('{{version}}', version)
-  .replace('{{agentPrompt}}', esc(AGENT_PROMPT))
+  .replace('{{agentPrompt}}', codeBlock(AGENT_PROMPT, 'text', { label: 'Setup prompt', id: 'setup-prompt' }))
   .replace('{{img:formats}}', FORMATS_HTML).replace('{{img:sizes}}', SIZES_HTML)
   .replaceAll('{{icon:copy}}', `<span class="ico">${ICON.copy}${ICON.check}</span>`).replace('{{demo}}', demoHtml()).replace('{{scenes}}', scenesHtml())
   .replace(/\{\{img:(\w+)\}\}/g, (_, n) => images[n] ?? '<p>Image unavailable in this build.</p>');
