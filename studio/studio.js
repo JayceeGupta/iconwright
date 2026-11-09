@@ -4,7 +4,7 @@
 // downloads and (on Windows) applying icons.
 import { parseStyle, formatStyle, normalizeStyle } from './shared/style.mjs';
 import { SCENES, TITLES, THEMED, DEFAULT_SCENES } from './shared/scenes.mjs';
-import { loadArt, Icon, neighborIcon, drawScene, retarget, sceneApps } from './engine.js';
+import { loadArt, Icon, neighborIcon, drawScene, retarget, sceneApps, iconifySvg } from './engine.js';
 
 const $ = (id) => document.getElementById(id);
 const token = new URLSearchParams(location.search).get('t');
@@ -340,14 +340,17 @@ function resultButton(id) {
   const b = document.createElement('button');
   b.type = 'button'; b.title = id; b.dataset.id = id;
   b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(id === state.source));
-  const [p, n] = id.split(':');
   const img = document.createElement('img');
   // The button carries the name; a failed load leaves a quiet gap instead of a broken-image glyph.
   b.setAttribute('aria-label', id);
-  img.alt = ''; img.loading = 'lazy'; img.width = 26; img.height = 26;
+  img.alt = ''; img.width = 26; img.height = 26;
   img.onerror = () => b.classList.add('broken');
-  // One-color icons are drawn in the page's ink color, so they read in dark mode; multicolor icons ignore it.
-  img.src = `https://api.iconify.design/${encodeURIComponent(p)}/${encodeURIComponent(n)}.svg?color=${encodeURIComponent(inkColor())}`;
+  // Fetched in batches (one request per icon set). One-color icons are drawn in the page's ink color,
+  // so they read in dark mode; multicolor icons ignore it.
+  iconifySvg(id).then((svg) => {
+    if (!svg) return b.classList.add('broken');
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/currentColor/g, inkColor()))}`;
+  }).catch((e) => { b.classList.add('broken'); if ($('results').contains(b) && !document.querySelector('#results button:not(.broken)')) status(e.message, true); });
   b.append(img);
   b.onclick = () => setSource(id);
   return b;
