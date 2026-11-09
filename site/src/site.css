@@ -58,19 +58,26 @@ kbd { font: 500 11px/1 var(--sans); box-shadow: var(--shadow-1); border-radius: 
 code { font-size: 0.86em; }
 :not(pre) > code.nw { white-space: nowrap; }
 :not(pre) > code { margin: 0 0.06em; background: var(--code-bg); padding: 0.12em 0.38em; border-radius: var(--r-1); overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-pre { position: relative; background: var(--pre-bg); color: var(--pre-ink); padding: var(--s-4) var(--s-5); border-radius: var(--r-3); overflow-x: auto; line-height: 1.65; font-size: 13.5px; box-shadow: var(--shadow-1); }
-pre code { font-size: inherit; background: none; padding: 0; }
-.copy {
-  position: absolute; top: var(--s-2); right: var(--s-2); min-height: 32px; padding: 0 var(--s-3);
-  font: 500 12px/1 var(--sans); border-radius: var(--r-1); border: 0; background: #2b2a26; color: #e9e7e1;
-  transition: background-color var(--d-fast) ease, transform var(--d-press) var(--ease-out);
-}
-.copy:active { transform: scale(0.96); }
-@media (hover: hover) and (pointer: fine) { .copy:hover { background: #3a3833; } }
-.code { position: relative; }
-.code pre { padding-right: 72px; }
+/* A code block: a header (what it is, and Copy), then the code. */
+.code { min-width: 0; background: var(--pre-bg); color: var(--pre-ink); border-radius: var(--r-3); box-shadow: var(--shadow-1); overflow: hidden; }
 .body .code { margin: var(--s-4) 0; }
-.body .code pre { margin: 0; }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: 40px; padding: 0 var(--s-1) 0 var(--s-4); box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.08); font: 500 12px/1 var(--mono); color: var(--pre-muted); }
+.code-copy { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-1); background: none; color: var(--pre-muted); font: 500 12.5px/1 var(--sans); transition: background-color var(--d-fast) ease, color var(--d-fast) ease, transform var(--d-press) var(--ease-out); }
+.code-copy:active { transform: scale(0.96); }
+.code-copy.copied { color: #8fd6a8; }
+@media (hover: hover) and (pointer: fine) { .code-copy:hover { background: rgb(255 255 255 / 0.08); color: var(--pre-ink); } }
+pre { margin: 0; padding: var(--s-4); overflow-x: auto; line-height: 1.65; font-size: 13.5px; color: var(--pre-ink); tab-size: 2;
+  /* Edge shadows appear only where there is more to scroll (the classic local/scroll background pair). */
+  background:
+    linear-gradient(to right, var(--pre-bg) 30%, transparent) left / 32px 100% no-repeat local,
+    linear-gradient(to left, var(--pre-bg) 30%, transparent) right / 32px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgb(255 255 255 / 0.14), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgb(255 255 255 / 0.14), transparent) right / 12px 100% no-repeat scroll,
+    var(--pre-bg); }
+pre:focus-visible { outline-offset: -2px; border-radius: 0 0 var(--r-3) var(--r-3); }
+pre code { font-size: inherit; background: none; padding: 0; }
+.code.wrap pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.code.wrap .ln { display: block; padding-left: calc((var(--in) + 2) * 1ch); text-indent: calc((var(--in) + 2) * -1ch); }
 
 
 /* ---------- header ---------- */
@@ -248,9 +255,8 @@ pre code { font-size: inherit; background: none; padding: 0; }
 .setup-steps li { counter-increment: s; display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: var(--s-4); color: var(--ink-2); }
 .setup-steps li::before { content: counter(s); grid-row: span 2; display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--r-2); background: var(--sunk); font: 500 13px/1 var(--mono); color: var(--ink); }
 .setup-steps b { color: var(--ink); font-weight: 600; }
-.setup pre { white-space: pre-wrap; margin: 0; padding: var(--s-5) 72px var(--s-5) var(--s-6); font-size: 12.5px; }
+.setup pre { font-size: 13px; padding: var(--s-4) var(--s-5) var(--s-5); }
 .prompt-card { display: grid; gap: var(--s-3); }
-.prompt-card .label { display: flex; justify-content: space-between; align-items: center; }
 
 /* safety */
 .facts { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-6); }
@@ -360,7 +366,7 @@ pre code { font-size: inherit; background: none; padding: 0; }
 .page-head h1 { display: flex; align-items: center; gap: var(--s-4); }
 .page-icon { flex: none; width: 48px; height: 48px; }
 .body hr { border: 0; border-top: 1px solid var(--rule); margin: var(--s-7) 0; }
-.body pre { margin: var(--s-4) 0; }
+
 .body :is(h2, h3) code { background: none; padding: 0; font-size: 0.9em; }
 .body :is(h2, h3) { position: relative; scroll-margin-top: calc(var(--header-h) + var(--s-4)); }
 .body :is(h2, h3) a.anchor { border-radius: var(--r-1); opacity: 0; text-decoration: none; margin-left: var(--s-2); color: var(--muted); font-weight: 400; transition: opacity var(--d-fast) ease; }
@@ -453,10 +459,9 @@ dialog.search::backdrop { background: rgb(18 18 16 / 0.45); }
   .scenes { flex: none !important; height: 280px; }
   .setup { grid-template-columns: minmax(0, 1fr); gap: var(--s-6); }
   .prompt-card, .code { min-width: 0; }
-  .setup pre { white-space: pre; padding: 48px var(--s-4) var(--s-4); font-size: 12.5px; }
+  .setup pre { padding: var(--s-4); font-size: 12.5px; }
   /* Phones: code wraps instead of scrolling under the copy button (copying keeps the original lines). */
-  .code pre { white-space: pre; overflow-wrap: normal; padding-top: 48px; padding-right: var(--s-6); }
-  .code::after { content: ""; position: absolute; top: 1px; right: 1px; bottom: 1px; width: 40px; border-radius: 0 var(--r-3) var(--r-3) 0; background: linear-gradient(90deg, transparent, var(--pre-bg)); pointer-events: none; }
+  pre { font-size: 12.5px; }
   .closing { padding: var(--s-8) 0; margin-top: var(--s-9); }
   .closing-in { grid-template-columns: 1fr; }
   .foot nav { margin-left: calc(-1 * var(--s-2)); }

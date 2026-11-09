@@ -14,22 +14,19 @@ async function copy(text, button, done = 'Copied', ms = 1600) {
   button.copyTimer = setTimeout(() => { label.textContent = old; button.classList.remove('copied'); }, ms);
 }
 
-for (const pre of $$('pre')) {
-  const b = document.createElement('button');
-  b.className = 'copy'; b.type = 'button'; b.textContent = 'Copy'; b.setAttribute('aria-label', 'Copy this code');
-  b.addEventListener('click', () => copy(pre.querySelector('code')?.innerText ?? pre.innerText, b));
-  // The button sits on a wrapper, not inside the scrolling block, so long lines never run under it.
-  const wrap = document.createElement('div');
-  wrap.className = 'code';
-  pre.replaceWith(wrap);
-  wrap.append(pre, b);
+// The code exactly as written: textContent keeps the original lines even where the block wraps them,
+// and wrapped blocks end every line with a newline, so drop the last one.
+const codeText = (el) => (el?.textContent ?? '').replace(/\n$/, '');
+for (const b of $$('.code-copy')) {
+  // textContent keeps the original lines, even where the block wraps them on screen.
+  b.addEventListener('click', () => copy(codeText(b.closest('.code').querySelector('pre code')), b, 'Copied', 2000));
 }
 for (const b of $$('[data-copy-md]')) {
   b.addEventListener('click', async () => copy(await (await fetch(b.dataset.copyMd)).text(), b, 'Copied'));
 }
 
 for (const b of $$('[data-copy-from]')) {
-  b.addEventListener('click', () => copy($(`${b.dataset.copyFrom} code`)?.innerText ?? '', b, b.dataset.copied ?? 'Copied', 3200));
+  b.addEventListener('click', () => copy(codeText($(`${b.dataset.copyFrom} code`)), b, b.dataset.copied ?? 'Copied', 3200));
 }
 
 // ---------- tabs (arrow keys move between them) ----------
