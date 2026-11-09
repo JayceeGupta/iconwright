@@ -245,6 +245,22 @@ dialog::backdrop { background: rgb(18 18 16 / 0.45); }
 .zoom-body { margin: 0 auto; width: 100%; border-radius: var(--r-2); overflow: hidden; }
 .zoom-body svg { display: block; width: 100%; height: 100%; }
 
+/* ---------- color picker ---------- */
+.picker { position: fixed; z-index: var(--z-overlay); width: 264px; display: grid; gap: var(--s-3); padding: var(--s-3); background: var(--surface); border-radius: var(--r-4); box-shadow: var(--shadow-3); }
+.picker:not([hidden]) { animation: pick-in var(--d-fast) var(--ease-out); }
+@keyframes pick-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+.pick-sv { --hue: red; position: relative; height: 168px; border-radius: var(--r-3); touch-action: none; cursor: crosshair;
+  background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, var(--hue)); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.1); }
+.pick-sv i { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.3); pointer-events: none; }
+.pick-sv:focus-visible { outline-offset: 3px; }
+.pick-hue { -webkit-appearance: none; appearance: none; width: 100%; height: 14px; margin: 3px 0; border-radius: var(--r-pill); cursor: pointer; accent-color: auto;
+  background: linear-gradient(90deg, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.1); }
+.pick-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.3), 0 2px 6px rgb(0 0 0 / 0.3); }
+.pick-hue::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.3), 0 2px 6px rgb(0 0 0 / 0.3); }
+.pick-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--s-2); align-items: center; }
+.pick-swatch { height: 36px; border-radius: var(--r-2); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 30%, transparent); }
+.pick-row .hex { width: 100%; }
+
 /* ---------- toast, drop ---------- */
 .toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 8px); opacity: 0; pointer-events: none; margin: 0; max-width: min(560px, calc(100vw - 32px));
   background: var(--ink); color: var(--on-ink); padding: 10px var(--s-4); border-radius: var(--r-3); font-size: 13.5px; box-shadow: var(--shadow-3); transition: opacity var(--d-base) var(--ease-out), transform var(--d-base) var(--ease-out); z-index: var(--z-overlay); }
@@ -305,6 +321,14 @@ dialog::backdrop { background: rgb(18 18 16 / 0.45); }
   .tabbar svg { width: 22px; height: 22px; }
   .tabbar button[aria-current="true"] { color: var(--accent); }
   .toast { bottom: calc(80px + env(safe-area-inset-bottom)); }
+  .picker { left: 0; right: 0; bottom: 0; top: auto; width: auto; padding: var(--s-4) var(--s-4) calc(var(--s-4) + env(safe-area-inset-bottom)); border-radius: var(--r-4) var(--r-4) 0 0; }
+  .picker:not([hidden]) { animation-name: sheet-in; }
+  @keyframes sheet-in { from { transform: translateY(24px); opacity: 0; } }
+  .pick-sv { height: 200px; }
+  .pick-hue { height: 20px; }
+  .pick-row { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .pick-swatch { height: 44px; }
+  .pick-row .btn { min-height: 44px; }
   dialog.sheet { margin: auto auto 0; width: 100%; max-width: 100%; border-radius: var(--r-4) var(--r-4) 0 0; padding-bottom: calc(var(--s-5) + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) {

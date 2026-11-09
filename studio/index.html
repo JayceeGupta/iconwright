@@ -216,6 +216,15 @@
     <div id="zoomBody" class="zoom-body"></div>
   </dialog>
 
+  <div id="picker" class="picker" role="dialog" aria-label="Pick a color" hidden>
+    <div id="pickSv" class="pick-sv" role="slider" tabindex="0" aria-label="Saturation and brightness" aria-valuemin="0" aria-valuemax="100"><i id="pickSvThumb"></i></div>
+    <input id="pickHue" class="pick-hue" type="range" min="0" max="359" step="1" aria-label="Hue">
+    <div class="pick-row">
+      <span id="pickSwatch" class="pick-swatch" aria-hidden="true"></span>
+      <input id="pickHex" class="hex" spellcheck="false" autocomplete="off" aria-label="Color value">
+      <button id="pickDone" class="btn primary" type="button">Done</button>
+    </div>
+  </div>
   <div id="dropHint" class="drop-hint" hidden><div>Drop an SVG to use it</div></div>
   <p id="status" class="toast" role="status" aria-live="polite"></p>
   <script type="module" src="studio.js"></script>

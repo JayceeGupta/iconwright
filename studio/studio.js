@@ -728,6 +728,83 @@ async function useFile(file) {
   setSource(text.trim(), { label: file.name.replace(/\.svg$/i, '') });
 }
 
+// ---------- color picker ----------
+// The browser's own picker can't be styled (Android shows a system dialog), so every color input opens
+// this one instead. It sets the input's value and fires the same input/change events the native one does.
+const picker = (() => {
+  const box = $('picker'), sv = $('pickSv'), thumb = $('pickSvThumb'), hue = $('pickHue'), hex = $('pickHex');
+  let target = null, start = '', hsv = [0, 0, 1];
+  const toHsv = (h) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+    const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+    let hh = 0;
+    if (d) hh = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [(hh * 60 + 360) % 360, max ? d / max : 0, max];
+  };
+  const toHex = ([h, s, v]) => '#' + [5, 3, 1].map((n) => { const k = (n + h / 60) % 6; return Math.round((v - v * s * Math.max(0, Math.min(k, 4 - k, 1))) * 255).toString(16).padStart(2, '0'); }).join('');
+  function paint(fromHex = false) {
+    const c = toHex(hsv);
+    sv.style.setProperty('--hue', `hsl(${hsv[0]} 100% 50%)`);
+    thumb.style.left = `${hsv[1] * 100}%`; thumb.style.top = `${(1 - hsv[2]) * 100}%`;
+    thumb.style.background = c; $('pickSwatch').style.background = c;
+    hue.value = Math.round(hsv[0]);
+    sv.setAttribute('aria-valuenow', String(Math.round(hsv[1] * 100)));
+    sv.setAttribute('aria-valuetext', `saturation ${Math.round(hsv[1] * 100)}%, brightness ${Math.round(hsv[2] * 100)}%`);
+    if (!fromHex && document.activeElement !== hex) hex.value = c;
+    if (target && target.value !== c) { target.value = c; target.dispatchEvent(new Event('input', { bubbles: true })); }
+  }
+  function place() {
+    if (matchMedia('(max-width: 820px)').matches) { box.style.left = box.style.top = ''; return; }
+    const r = target.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+    const left = Math.min(Math.max(8, r.left), innerWidth - w - 8);
+    const below = r.bottom + 8 + h < innerHeight;
+    box.style.left = `${left}px`; box.style.top = `${below ? r.bottom + 8 : Math.max(8, r.top - h - 8)}px`;
+  }
+  function open(input) {
+    target = input; start = input.value; hsv = toHsv(/^#[0-9a-f]{6}$/i.test(start) ? start : '#ffffff');
+    box.hidden = false; paint(); hex.value = toHex(hsv); place(); sv.focus();
+  }
+  function close(keep = true) {
+    if (!target) return;
+    const t = target; target = null; box.hidden = true;
+    if (!keep && t.value !== start) { t.value = start; t.dispatchEvent(new Event('input', { bubbles: true })); }
+    else if (t.value !== start) t.dispatchEvent(new Event('change', { bubbles: true }));
+    t.focus();
+  }
+  function fromPoint(e) {
+    const r = sv.getBoundingClientRect();
+    hsv[1] = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    hsv[2] = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+    paint();
+  }
+  sv.addEventListener('pointerdown', (e) => { sv.setPointerCapture(e.pointerId); fromPoint(e); });
+  sv.addEventListener('pointermove', (e) => { if (sv.hasPointerCapture(e.pointerId)) fromPoint(e); });
+  sv.addEventListener('keydown', (e) => {
+    const d = e.shiftKey ? 0.1 : 0.02;
+    const move = { ArrowLeft: [-d, 0], ArrowRight: [d, 0], ArrowUp: [0, d], ArrowDown: [0, -d] }[e.key];
+    if (!move) return;
+    e.preventDefault();
+    hsv[1] = Math.min(1, Math.max(0, hsv[1] + move[0])); hsv[2] = Math.min(1, Math.max(0, hsv[2] + move[1])); paint();
+  });
+  hue.addEventListener('input', () => { hsv[0] = +hue.value; paint(); });
+  hex.addEventListener('input', () => { const v = hex.value.trim(), h = /^#?[0-9a-f]{6}$/i.test(v) ? (v.startsWith('#') ? v : '#' + v) : null; if (h) { hsv = toHsv(h.toLowerCase()); paint(true); } });
+  $('pickDone').addEventListener('click', () => close(true));
+  box.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(false); }
+    if (e.key === 'Enter' && e.target === hex) close(true);
+    if (e.key === 'Tab') { // focus stays in the picker while it's open
+      const f = [sv, hue, hex, $('pickDone')], i = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(i + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
+    }
+  });
+  document.addEventListener('pointerdown', (e) => { if (target && !box.contains(e.target) && e.target !== target) close(true); }, true);
+  addEventListener('resize', () => target && place());
+  for (const input of document.querySelectorAll('input[type=color]')) {
+    input.addEventListener('click', (e) => { e.preventDefault(); target === input ? close(true) : open(input); });
+  }
+  return { open, close };
+})();
+
 async function init() {
   wire();
   // A pasted or clicked link to another design in the same tab.
